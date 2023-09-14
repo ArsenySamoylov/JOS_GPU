@@ -111,7 +111,35 @@ InitGraphics (
   // Refer to Graphics Output Protocol description in UEFI spec for
   // more details.
   //
-  // Hint: Use QueryMode/SetMode functions.
+  // Hint: Use GetMode/SetMode functions.
+  // GetMode
+  // EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL protocol = {};
+  const UINT32 MaxMode = GraphicsOutput->Mode->MaxMode;
+  UINT32 Ideal_mode = GraphicsOutput->Mode->Mode; // Default mode
+
+  const int Idl_horizontal_res = 1200;
+  const int Idl_vert_res = 720;
+
+  for (UINT32 Mode = 0; Mode < MaxMode; Mode++)
+    {
+    EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Mode_info_ptr = NULL;
+    UINTN Size_of_info = {};
+
+    Status = GraphicsOutput->QueryMode(GraphicsOutput, Mode, &Size_of_info, &Mode_info_ptr);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "JOS: Invalid Graphic mode information - %r\n", Status));
+      return Status;
+    }
+
+    if (Mode_info_ptr->HorizontalResolution > Idl_horizontal_res &&
+        Mode_info_ptr->VerticalResolution   > Idl_vert_res)
+        {
+        Ideal_mode = Mode;
+        break;
+        }
+    }
+
+  GraphicsOutput->SetMode(GraphicsOutput, Ideal_mode);
   //
 
   //
