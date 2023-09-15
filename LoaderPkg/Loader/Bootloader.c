@@ -131,8 +131,14 @@ InitGraphics (
       return Status;
     }
 
-    if (Mode_info_ptr->HorizontalResolution > Idl_horizontal_res &&
-        Mode_info_ptr->VerticalResolution   > Idl_vert_res)
+    UINT32 horizontal_res = Mode_info_ptr->HorizontalResolution;
+    UINT32 vertical_res   = Mode_info_ptr->VerticalResolution;
+
+    FreePool(Mode_info_ptr);
+    Mode_info_ptr = NULL;
+    
+    if (horizontal_res > Idl_horizontal_res &&
+        vertical_res    > Idl_vert_res)
         {
         Ideal_mode = Mode;
         break;
