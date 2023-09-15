@@ -303,7 +303,12 @@ GetKernelFile (
   // get loader's containing device.
   //
   // LAB 1: Your code here
-  (void)LoadedImage;
+  LoadedImage = NULL;
+  Status      = gBS->HandleProtocol (
+                        gImageHandle,
+                        &gEfiLoadedImageProtocolGuid, 
+                        (void**) &LoadedImage
+                        ); 
 
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "JOS: Cannot find LoadedImage protocol - %r\n", Status));
@@ -321,7 +326,12 @@ GetKernelFile (
   // to read the kernel from it later.
   //
   // LAB 1: Your code here
-  (void)FileSystem;
+  FileSystem = NULL;
+  Status     = gBS->HandleProtocol (
+                        LoadedImage->DeviceHandle,
+                        &gEfiSimpleFileSystemProtocolGuid,
+                        (void**) &FileSystem
+                        );
 
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "JOS: Cannot find own FileSystem protocol - %r\n", Status));
@@ -333,7 +343,11 @@ GetKernelFile (
   // NOTE: Don't forget to Use ->Close after you've done using it.
   //
   // LAB 1: Your code here
-  (void)CurrentDriveRoot;
+  CurrentDriveRoot = NULL;
+  Status           = FileSystem->OpenVolume (
+                                    FileSystem, 
+                                    &CurrentDriveRoot
+                                    );
 
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "JOS: Cannot access own file system - %r\n", Status));
@@ -346,11 +360,20 @@ GetKernelFile (
   //
   // LAB 1: Your code here
   KernelFile = NULL;
+  Status     = CurrentDriveRoot->Open (
+                                  CurrentDriveRoot,
+                                  &KernelFile,
+                                  KERNEL_PATH,
+                                  EFI_FILE_MODE_READ,
+                                  EFI_FILE_READ_ONLY
+                                  );
 
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "JOS: Cannot access own file system - %r\n", Status));
     return Status;
   }
+
+  CurrentDriveRoot->Close(CurrentDriveRoot);
 
   *FileProtocol = KernelFile;
   return EFI_SUCCESS;
@@ -1015,7 +1038,7 @@ UefiMain (
   UINTN              EntryPoint;
   VOID               *GateData;
 
-#if 1 ///< Uncomment to await debugging
+#if 0 ///< Uncomment to await debugging
   volatile BOOLEAN   Connected;
   DEBUG ((DEBUG_INFO, "JOS: Awaiting debugger connection\n"));
 
