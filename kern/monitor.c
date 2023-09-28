@@ -19,6 +19,7 @@
 int mon_help(int argc, char **argv, struct Trapframe *tf);
 int mon_kerninfo(int argc, char **argv, struct Trapframe *tf);
 int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
+int mon_useless(int argc, char **argv, struct Trapframe *tf);
 
 struct Command {
     const char *name;
@@ -31,6 +32,7 @@ static struct Command commands[] = {
         {"help", "Display this list of commands", mon_help},
         {"kerninfo", "Display information about the kernel", mon_kerninfo},
         {"backtrace", "Print stack backtrace", mon_backtrace},
+        {"useless", "Encourage you", mon_useless},
 };
 #define NCOMMANDS (sizeof(commands) / sizeof(commands[0]))
 
@@ -63,6 +65,14 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
 
     return 0;
 }
+
+int mon_useless(int argc, char **argv, struct Trapframe *tf)
+    {
+    cprintf("You are doing Great!\n");
+    cprintf("And rememder:\n");
+    cprintf("\tNo product or commponent can be absouletly secure - Intel SDM\n");
+    return 0;    
+    }
 
 /* Kernel monitor command interpreter */
 
