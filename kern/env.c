@@ -92,6 +92,14 @@ env_init(void) {
     /* Set up envs array */
 
     // LAB 3: Your code here
+    for (int i = 0; i < NENV; i++) {
+        const struct Env temp = {{}, env_array + i, 0, 0, ENV_FREE};
+        env_array[i] = temp;
+        }
+
+    env_array[NENV - 1].env_link = NULL;
+
+    env_free_list = env_array;    
 }
 
 /* Allocates and initializes a new environment.
@@ -222,10 +230,44 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
  *   You must also do something with the program's entry point,
  *   to make sure that the environment starts executing there.
  *   What?  (See env_run() and env_pop_tf() below.) */
+void
+map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
+
 static int
 load_icode(struct Env *env, uint8_t *binary, size_t size) {
     // LAB 3: Your code here
+    if (!env || !binary || !size)
+        return E_INVALID_EXE;
 
+    const struct Elf* elf = (struct Elf*) binary;
+
+    if (elf->e_magic != ELF_MAGIC)
+        return E_INVALID_EXE;
+
+    // it would be nice to check some more info (i.e. e_type, e_machine) from Elf, 
+    // but thats not resonable for now.
+
+    const struct Proghdr* ph = (struct Proghdr*) elf->e_phoff;
+    if (!ph)
+        return E_INVALID_EXE;
+    
+    for (int i = 0; i < elf->e_phnum; i++, ph++)
+        {
+        if (ph->p_type != ELF_PROG_LOAD)
+            continue;
+
+        if (ph->p_filesz <= ph->p_memsz || ph->p_va != ph->p_pa)
+            return E_INVALID_EXE;
+
+        map_addr_early_boot(ph->p_va, ph->p_pa, ph->p_memsz);
+
+        memcpy((void*) ph->p_va, binary + ph->p_offset, ph->p_filesz);
+        memset((void*) (ph->p_va + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
+        }
+
+    env->env_tf.tf_rip    = elf->e_entry;
+    env->env_tf.tf_rflags = elf->e_flags;
+    
     return 0;
 }
 
@@ -238,6 +280,21 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type) {
     // LAB 3: Your code here
+    struct Env* nenv = NULL;
+    int status = 0;
+
+    status = env_alloc(&nenv, 0, ENV_TYPE_KERNEL);
+    if (status) {
+        cprintf ("%s: %i\n", __func__, status);
+    }
+
+    status = load_icode (nenv, binary, size);
+    if (status) {
+        cprintf ("%s: %i\n", __func__, status);   
+    }
+
+    nenv->env_parent_id = 0;
+    nenv->binary        = binary;
 }
 
 
@@ -349,7 +406,16 @@ env_run(struct Env *env) {
     }
 
     // LAB 3: Your code here
+    if (curenv) {
+        if (curenv->env_status == ENV_RUNNING)
+            curenv->env_status = ENV_RUNNABLE;
+    }
 
-    while (1)
-        ;
+    curenv = env;
+    curenv->env_status = ENV_RUNNING;
+    curenv->env_runs++;
+
+    env_pop_tf(&env->env_tf);
+
+    panic("Reached unrecheble\n");    
 }
