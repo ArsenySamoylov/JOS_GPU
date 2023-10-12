@@ -108,6 +108,8 @@ env_init(void) {
  *    -E_NO_FREE_ENV if all NENVS environments are allocated
  *    -E_NO_MEM on memory exhaustion
  */
+void
+map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
 int
 env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
 
@@ -153,7 +155,11 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     env->env_tf.tf_cs = GD_KT;
 
     // LAB 3: Your code here:
-    // static uintptr_t stack_top = 0x2000000;
+    static uintptr_t stack_top = 0x2000000;
+    env->env_tf.tf_rsp = stack_top;
+    map_addr_early_boot(stack_top, stack_top, PAGE_SIZE*2);
+    stack_top += PAGE_SIZE*2;
+
 #else
     env->env_tf.tf_ds = GD_UD | 3;
     env->env_tf.tf_es = GD_UD | 3;
@@ -167,6 +173,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     *newenv_store = env;
 
     if (trace_envs) cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, env->env_id);
+     cprintf("%s: tf_rsp: %p\n", __func__, (void*) env->env_tf.tf_rsp);   
     return 0;
 }
 
@@ -225,8 +232,7 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
  *   You must also do something with the program's entry point,
  *   to make sure that the environment starts executing there.
  *   What?  (See env_run() and env_pop_tf() below.) */
-void
-map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
+
 
 static int
 load_icode(struct Env *env, uint8_t *binary, size_t size) {
@@ -279,6 +285,8 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type) {
     // LAB 3: Your code here
+    // cprintf("%s %p\n", __func__, binary);
+
     struct Env* nenv = NULL;
     int status = 0;
 
@@ -289,7 +297,8 @@ env_create(uint8_t *binary, size_t size, enum EnvType type) {
 
     status = load_icode (nenv, binary, size);
     if (status) {
-        cprintf ("%s: %i\n", __func__, status);   
+        cprintf ("%s: %i\n", __func__, status);
+        assert(0);   
     }
 
     nenv->env_parent_id = 0;
@@ -422,6 +431,7 @@ env_run(struct Env *env) {
     curenv->env_status = ENV_RUNNING;
     curenv->env_runs++;
 
+    // env->env_tf.tf_rsp = read_rsp();
     env_pop_tf(&env->env_tf);
 
     panic("Reached unrecheble\n");    
