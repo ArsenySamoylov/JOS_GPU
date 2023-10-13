@@ -336,6 +336,8 @@ env_destroy(struct Env *env) {
      * it traps to the kernel. */
 
     // LAB 3: Your code here
+    if (env->env_status == ENV_RUNNING)
+        env->env_status = ENV_DYING;
 }
 
 #ifdef CONFIG_KSPACE
@@ -343,6 +345,8 @@ void
 csys_exit(void) {
     if (!curenv) panic("curenv = NULL");
     env_destroy(curenv);
+    // curenv = NULL;
+    sched_yield();
 }
 
 void
