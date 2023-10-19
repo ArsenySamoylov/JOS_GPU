@@ -90,7 +90,7 @@ env_init(void) {
 
     // LAB 3: Your code here
     for (int i = 0; i < NENV; i++) {
-        const struct Env temp = {{}, env_array + i, 0, 0, ENV_FREE};
+        const struct Env temp = {{}, env_array + i + 1, 0, 0, ENV_FREE};
         env_array[i] = temp;
         }
 
@@ -108,8 +108,6 @@ env_init(void) {
  *    -E_NO_FREE_ENV if all NENVS environments are allocated
  *    -E_NO_MEM on memory exhaustion
  */
-void
-map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
 int
 env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
 
@@ -155,9 +153,9 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     env->env_tf.tf_cs = GD_KT;
 
     // LAB 3: Your code here:
+    // TODO: come up with better algrorithm for allocating stack
     static uintptr_t stack_top = 0x2000000;
     env->env_tf.tf_rsp = stack_top;
-    map_addr_early_boot(stack_top, stack_top, PAGE_SIZE*2);
     stack_top += PAGE_SIZE*2;
 
 #else
@@ -173,7 +171,6 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     *newenv_store = env;
 
     if (trace_envs) cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, env->env_id);
-     cprintf("%s: tf_rsp: %p\n", __func__, (void*) env->env_tf.tf_rsp);   
     return 0;
 }
 
@@ -182,10 +179,70 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
  * Make sure you understand why you need to check that each binding
  * must be performed within the image_start/image_end range.
  */
+#define INT_ADD_OVERFLOW(a, b, c) \
+   __builtin_add_overflow (a, b, c)
+
 static int
 bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_start, uintptr_t image_end) {
     // LAB 3: Your code here:
+    if (!env || !binary)
+      return -E_INVALID_EXE;
 
+    if (size < sizeof(const struct Elf) + sizeof(const struct Secthdr) || 
+        UINTPTR_MAX - sizeof(const struct Elf) < (uintptr_t) binary)
+      return -E_INVALID_EXE;
+
+    const struct Elf* elf = (struct Elf*) binary;
+
+    if (elf->e_magic != ELF_MAGIC)
+      return -E_INVALID_EXE;
+
+    if (size < elf->e_shoff + sizeof(struct Secthdr))
+      return -E_INVALID_EXE;
+
+    const struct Secthdr* sh;
+    if (INT_ADD_OVERFLOW((uintptr_t) binary, elf->e_shoff, (uintptr_t*) &sh) ||
+        UINTPTR_MAX - sizeof(sh[0]) < (uintptr_t) sh)
+      return -E_INVALID_EXE;
+  
+    const struct Secthdr* symtab = NULL;
+    for (int i = 0; i < elf->e_shnum; i++, sh++) {
+        if (sh->sh_type == ELF_SHT_SYMTAB){
+          symtab = sh;
+          break;
+          }
+        }
+
+    const struct Secthdr* strtab = NULL;
+    if (INT_ADD_OVERFLOW((uintptr_t) binary, elf->e_shoff, (uintptr_t*) &strtab) ||
+        INT_ADD_OVERFLOW(symtab->sh_link * elf->e_shentsize, (uintptr_t) strtab, (uintptr_t*) &strtab) ||
+        (uintptr_t)strtab - (uintptr_t)binary > size) 
+      return -E_INVALID_EXE;
+
+    int n_symb = symtab->sh_size / symtab->sh_entsize;
+    const struct Elf64_Sym* sym = (struct Elf64_Sym*) (binary + symtab->sh_offset);
+
+    for (int i = 0; i < n_symb; i++, sym++) {
+        if (ELF64_ST_BIND(sym->st_info) != STB_GLOBAL || 
+            ELF64_ST_TYPE(sym->st_info) != STT_OBJECT)
+          continue;
+
+        const char* fname = (char*) (binary + strtab->sh_offset + sym->st_name);
+
+        uintptr_t offset = find_function(fname);
+        if (!offset)
+            continue;
+
+        uintptr_t func_ptr_va = sym->st_value;
+        if (func_ptr_va < image_start &&
+            func_ptr_va > image_end) {
+          cprintf("%s: WARNING %s out of image_start, image_end borders\n", __func__, fname);
+          continue;
+          }
+
+        memcpy((void*)func_ptr_va, &offset, sizeof(func_ptr_va));
+        // cprintf("%s: binded ptr to %s (%p) = %p\n", __func__, fname, (void*)func_ptr_va, (void*)offset); 
+      }
     /* NOTE: find_function from kdebug.c should be used */
 
     return 0;
@@ -262,8 +319,6 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
             return E_INVALID_EXE;
         }
 
-        map_addr_early_boot(ph->p_va, ph->p_pa, ph->p_memsz);
-
         memcpy((void*) ph->p_va, binary + ph->p_offset, ph->p_filesz);
         memset((void*) (ph->p_va + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
         // cprintf("%s: maping segment p_va:%p\n", __func__, (void*)ph->p_va);
@@ -272,7 +327,8 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
     env->env_tf.tf_rip    = elf->e_entry;
     env->env_tf.tf_rflags = elf->e_flags;
     // cprintf("%s: entry_point:%p\n", __func__, (void*)elf->e_entry);
-    
+    int status = bind_functions(env, binary, size, elf->e_entry, elf->e_entry + 0);
+    (void)status;
     return 0;
 }
 
@@ -285,7 +341,6 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type) {
     // LAB 3: Your code here
-    // cprintf("%s %p\n", __func__, binary);
 
     struct Env* nenv = NULL;
     int status = 0;
@@ -331,8 +386,10 @@ env_destroy(struct Env *env) {
      * it traps to the kernel. */
 
     // LAB 3: Your code here
-    if (env->env_status == ENV_RUNNING)
-        env->env_status = ENV_DYING;
+    // if (env->env_status == ENV_RUNNING)
+        // env->env_status = ENV_DYING;
+
+    env_free(env);
 }
 
 #ifdef CONFIG_KSPACE
@@ -340,7 +397,6 @@ void
 csys_exit(void) {
     if (!curenv) panic("curenv = NULL");
     env_destroy(curenv);
-    // curenv = NULL;
     sched_yield();
 }
 

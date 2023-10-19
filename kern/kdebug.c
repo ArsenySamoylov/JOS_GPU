@@ -94,6 +94,31 @@ find_function(const char *const fname) {
      * in assembly. */
 
     // LAB 3: Your code here:
+    assert(fname);
+
+    struct Dwarf_Addrs addrs;
+    load_kernel_dwarf_info(&addrs);
+
+    uintptr_t offset = 0;
+    int status = address_by_fname(&addrs, fname, &offset);
+    if(!status)
+      return offset;
+
+    status = naive_address_by_fname(&addrs, fname, &offset);
+    if(!status)
+      return offset;
+
+    for (const struct Elf64_Sym *end = (struct Elf64_Sym*) uefi_lp->SymbolTableEnd, 
+                                *sym = (struct Elf64_Sym*) uefi_lp->SymbolTableStart;
+         sym < end; sym++) {
+      if (ELF64_ST_BIND(sym->st_info) != STB_GLOBAL || 
+          ELF64_ST_TYPE(sym->st_info) != STT_FUNC)
+        continue;
+      
+      const char* symbol_name = (char*) (uefi_lp->StringTableStart + sym->st_name);
+      if (!strcmp(symbol_name, fname))
+        return sym->st_value;
+      }
 
     return 0;
 }

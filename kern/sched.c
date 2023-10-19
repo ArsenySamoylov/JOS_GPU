@@ -25,7 +25,15 @@ sched_yield(void) {
      * below to halt the cpu */
 
     // LAB 3: Your code here:
-    for (int i = 0; i < NENV; i++)
+    const int num = !curenv ? 0 : (curenv - envs) + 1;
+    for (int i = num; i < NENV; i++)
+        {
+        if (envs[i].env_status == ENV_RUNNABLE && 
+            curenv != envs + i)
+            env_run(envs + i);
+        }
+
+    for (int i = 0; i < num; i++)
         {
         if (envs[i].env_status == ENV_RUNNABLE && 
             curenv != envs + i)
