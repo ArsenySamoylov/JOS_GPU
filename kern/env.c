@@ -298,19 +298,19 @@ static int
 load_icode(struct Env *env, uint8_t *binary, size_t size) {
     // LAB 3: Your code here
     if (!env || !binary || !size)
-        return E_INVALID_EXE;
+        return -E_INVALID_EXE;
 
     const struct Elf* elf = (struct Elf*) binary;
 
     if (elf->e_magic != ELF_MAGIC)
-        return E_INVALID_EXE;
+        return -E_INVALID_EXE;
 
     // it would be nice to check some more info (i.e. e_type, e_machine) from Elf, 
     // but thats not resonable for now.
 
     const struct Proghdr* ph = (struct Proghdr*) (binary + elf->e_phoff);
-    if (!ph)
-        return E_INVALID_EXE;
+    if ((uint8_t*)ph > binary + size)
+        return -E_INVALID_EXE;
     
     for (int i = 0; i < elf->e_phnum; i++, ph++)
         {
@@ -319,7 +319,7 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 
         if (ph->p_filesz > ph->p_memsz || ph->p_va != ph->p_pa) {
             // cprintf("filesz %ld, memsz %ld, va %p, pa %p\n", ph->p_filesz, ph->p_memsz, (void*) ph->p_va, (void*) ph->p_pa);
-            return E_INVALID_EXE;
+            return -E_INVALID_EXE;
         }
 
         memcpy((void*) ph->p_va, binary + ph->p_offset, ph->p_filesz);
