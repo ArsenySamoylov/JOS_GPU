@@ -294,8 +294,6 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
  *   You must also do something with the program's entry point,
  *   to make sure that the environment starts executing there.
  *   What?  (See env_run() and env_pop_tf() below.) */
-
-
 static int
 load_icode(struct Env *env, uint8_t *binary, size_t size) {
     // LAB 3: Your code here
@@ -333,7 +331,11 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
     env->env_tf.tf_rflags = elf->e_flags;
     // cprintf("%s: entry_point:%p\n", __func__, (void*)elf->e_entry);
     int status = bind_functions(env, binary, size, elf->e_entry, elf->e_entry + 0);
-    (void)status;
+    if (status) {
+      cprintf("Couldn't bind functions -%i\n", status);
+      return status;
+    }
+
     return 0;
 }
 
@@ -391,9 +393,6 @@ env_destroy(struct Env *env) {
      * it traps to the kernel. */
 
     // LAB 3: Your code here
-    // if (env->env_status == ENV_RUNNING)
-        // env->env_status = ENV_DYING;
-
     env_free(env);
 }
 
