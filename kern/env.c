@@ -327,7 +327,7 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
         }
 
     env->env_tf.tf_rip    = elf->e_entry;
-    env->env_tf.tf_rflags = elf->e_flags;
+    // env->env_tf.tf_rflags |= elf->e_flags; <- this breaks Lab 4
     // cprintf("%s: entry_point:%p\n", __func__, (void*)elf->e_entry);
     int status = bind_functions(env, binary, size, elf->e_entry, elf->e_entry + 0);
     if (status) {
@@ -486,7 +486,6 @@ env_run(struct Env *env) {
     curenv->env_status = ENV_RUNNING;
     curenv->env_runs++;
 
-    // env->env_tf.tf_rsp = read_rsp();
     env_pop_tf(&env->env_tf);
 
     panic("Reached unrecheble\n");    
