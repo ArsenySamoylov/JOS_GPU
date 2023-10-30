@@ -31,6 +31,15 @@ int mon_pong(int argc, char **argv, struct Trapframe *tf);
 int mon_font(int argc, char **argv, struct Trapframe *tf);
 int mon_example(int argc, char **argv, struct Trapframe *tf);
 int mon_play_snd(int argc, char **argv, struct Trapframe *tf);
+int mon_kerninfo(int argc, char **argv, struct Trapframe *tf);
+int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
+int mon_dumpcmos(int argc, char **argv, struct Trapframe *tf);
+int mon_start(int argc, char **argv, struct Trapframe *tf);
+int mon_stop(int argc, char **argv, struct Trapframe *tf);
+int mon_frequency(int argc, char **argv, struct Trapframe *tf);
+int mon_memory(int argc, char **argv, struct Trapframe *tf);
+int mon_pagetable(int argc, char **argv, struct Trapframe *tf);
+int mon_virt(int argc, char **argv, struct Trapframe *tf);
 
 struct Command {
     const char *name;
@@ -45,6 +54,16 @@ static struct Command commands[] = {
         {"font",     "Display string on screen",      mon_font},
         {"example",  "Best example",                  mon_example},
         {"play_snd", "HDA example",                   mon_play_snd},
+        {"help", "Display this list of commands", mon_help},
+        {"kerninfo", "Display information about the kernel", mon_kerninfo},
+        {"backtrace", "Print stack backtrace", mon_backtrace},
+        {"dumpcmos", "Display CMOS contents", mon_dumpcmos},
+        {"timer_start", "Start timer", mon_start},
+        {"timer_stop", "Stop timer", mon_stop},
+        {"timer_freq", "Get timer frequency", mon_frequency},
+        {"memory", "Display allocated memory pages", mon_memory},
+        {"pagetable", "Display current page table", mon_pagetable},
+        {"virt", "Display virtual memory tree", mon_virt},
 };
 
 #define NCOMMANDS (sizeof(commands) / sizeof(commands[0]))
@@ -71,6 +90,128 @@ int mon_font(int argc, char **argv, struct Trapframe *tf){
     }
 
     cprintf("Drawing '%s'\n", argv[1]);
+    
+    timer_start(argv[1]);
+    return 0;
+}
+
+int
+mon_kerninfo(int argc, char **argv, struct Trapframe *tf) {
+    extern char _head64[], entry[], etext[], edata[], end[];
+
+    cprintf("Special kernel symbols:\n");
+    cprintf("  _head64 %16lx (virt)  %16lx (phys)\n", (unsigned long)_head64, (unsigned long)_head64);
+    cprintf("  entry   %16lx (virt)  %16lx (phys)\n", (unsigned long)entry, (unsigned long)entry - KERN_BASE_ADDR);
+    cprintf("  etext   %16lx (virt)  %16lx (phys)\n", (unsigned long)etext, (unsigned long)etext - KERN_BASE_ADDR);
+    cprintf("  edata   %16lx (virt)  %16lx (phys)\n", (unsigned long)edata, (unsigned long)edata - KERN_BASE_ADDR);
+    cprintf("  end     %16lx (virt)  %16lx (phys)\n", (unsigned long)end, (unsigned long)end - KERN_BASE_ADDR);
+    cprintf("Kernel executable memory footprint: %luKB\n", (unsigned long)ROUNDUP(end - entry, 1024) / 1024);
+    return 0;
+}
+
+int
+mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
+    uint64_t rbp = read_rbp();
+    uint64_t rip = read_rip();
+
+    cprintf("Stack backtrace:\n");
+
+    while (true)
+        {
+        struct Ripdebuginfo caller_info;
+        debuginfo_rip(rip, &caller_info);
+
+        cprintf("  rbp %016lx rip %016lx\n", rbp, rip);
+        cprintf ("    %s:%d: %*s+%ld\n", 
+                caller_info.rip_file, 
+                caller_info.rip_line, 
+                caller_info.rip_fn_namelen, caller_info.rip_fn_name,
+                rip - caller_info.rip_fn_addr);
+
+        if (!rbp)
+            break;
+
+        rip = *(((uint64_t*) rbp) + 1);
+        rbp = *((uint64_t*) rbp);
+        }
+
+    return 0;
+}
+
+/* Implement timer_start (mon_start), timer_stop (mon_stop), timer_freq (mon_frequency) commands. */
+// LAB 5: Your code here:
+
+int
+mon_start(int argc, char **argv, struct Trapframe *tf) {
+    if (argc != 2) {
+        cprintf("Pass only ONE argument: timer name\n");
+        return 0;
+    }
+
+    timer_start(argv[1]);
+    return 0;
+}
+
+int
+mon_stop(int argc, char **argv, struct Trapframe *tf) {
+    timer_stop();
+    return 0;
+}
+
+int
+mon_frequency(int argc, char **argv, struct Trapframe *tf) {
+    if (argc != 2) {
+        cprintf("Pass only ONE argument: timer name\n");
+        return 0;
+    }
+
+    timer_cpu_frequency(argv[1]);
+    return 0;
+}
+
+// LAB 6: Your code here
+/* Implement memory (mon_memory) commands. */
+int
+mon_memory(int argc, char **argv, struct Trapframe *tf) {
+    dump_memory_lists();
+    return 0;
+}
+
+/* Implement mon_pagetable() and mon_virt()
+ * (using dump_virtual_tree(), dump_page_table())*/
+int
+mon_pagetable(int argc, char **argv, struct Trapframe *tf) {
+    // LAB 7: Your code here
+    return 0;
+}
+
+int
+mon_virt(int argc, char **argv, struct Trapframe *tf) {
+    // LAB 7: Your code here
+    return 0;
+}
+
+// LAB 4: Your code here
+int
+mon_dumpcmos(int argc, char **argv, struct Trapframe *tf) {
+    // Dump CMOS memory in the following format:
+    // 00: 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF
+    // 10: 00 ..
+    // Make sure you understand the values read.
+    // Hint: Use cmos_read8()/cmos_write8() functions.
+    // LAB 4: Your code here
+
+    for (int i = 0; i < CMOS_SIZE; i += 0x10) {
+         cprintf("%02x:", i);
+         for (int j = 0; j < 0x10; ++j) {
+            if (i+j >= CMOS_SIZE)
+                break;
+
+            cprintf(" %02x", cmos_read8(i+j));
+            }
+            
+         cprintf("\n");
+    }
     
     struct font_t* font = get_main_font();
 
