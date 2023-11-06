@@ -183,70 +183,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
  * Make sure you understand why you need to check that each binding
  * must be performed within the image_start/image_end range.
  */
-#define INT_ADD_OVERFLOW(a, b, c) \
-   __builtin_add_overflow (a, b, c)
 
-static int
-bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_start, uintptr_t image_end) {
-    // LAB 3: Your code here:
-    if (!env || !binary)
-      return -E_INVALID_EXE;
-
-    if (size < sizeof(const struct Elf) + sizeof(const struct Secthdr) || 
-        UINTPTR_MAX - sizeof(const struct Elf) < (uintptr_t) binary)
-      return -E_INVALID_EXE;
-
-    const struct Elf* elf = (struct Elf*) binary;
-
-    if (elf->e_magic != ELF_MAGIC)
-      return -E_INVALID_EXE;
-
-    if (size < elf->e_shoff + sizeof(struct Secthdr))
-      return -E_INVALID_EXE;
-
-    const struct Secthdr* sh;
-    if (INT_ADD_OVERFLOW((uintptr_t) binary, elf->e_shoff, (uintptr_t*) &sh) ||
-        UINTPTR_MAX - sizeof(sh[0]) < (uintptr_t) sh)
-      return -E_INVALID_EXE;
-  
-    const struct Secthdr* symtab = NULL;
-    for (int i = 0; i < elf->e_shnum; i++, sh++) {
-        if (sh->sh_type == ELF_SHT_SYMTAB){
-          symtab = sh;
-          break;
-          }
-        }
-
-    const struct Secthdr* strtab = NULL;
-    if (INT_ADD_OVERFLOW((uintptr_t) binary, elf->e_shoff, (uintptr_t*) &strtab) ||
-        INT_ADD_OVERFLOW(symtab->sh_link * elf->e_shentsize, (uintptr_t) strtab, (uintptr_t*) &strtab) ||
-        (uintptr_t)strtab - (uintptr_t)binary > size) 
-      return -E_INVALID_EXE;
-
-    int n_symb = symtab->sh_size / symtab->sh_entsize;
-    const struct Elf64_Sym* sym = (struct Elf64_Sym*) (binary + symtab->sh_offset);
-
-    for (int i = 0; i < n_symb; i++, sym++) {
-        if (ELF64_ST_BIND(sym->st_info) != STB_GLOBAL || 
-            ELF64_ST_TYPE(sym->st_info) != STT_OBJECT)
-          continue;
-
-        const char* fname = (char*) (binary + strtab->sh_offset + sym->st_name);
-
-        uintptr_t offset = find_function(fname);
-        if (!offset)
-            continue;
-
-        uintptr_t func_ptr_va = sym->st_value;
-        if (func_ptr_va < image_start &&
-            func_ptr_va > image_end) {
-          cprintf("%s: WARNING %s out of image_start, image_end borders\n", __func__, fname);
-          continue;
-          }
-
-        memcpy((void*)func_ptr_va, &offset, sizeof(func_ptr_va));
-        // cprintf("%s: binded ptr to %s (%p) = %p\n", __func__, fname, (void*)func_ptr_va, (void*)offset); 
-      }
     /* NOTE: find_function from kdebug.c should be used */
 
     return 0;
