@@ -87,6 +87,26 @@ acpi_find_table(const char *sign) {
      * HINT: You may want to distunguish RSDT/XSDT
      */
     // LAB 5: Your code here:
+    RSDP* rsd_ptr = (RSDP*) uefi_lp->ACPIRoot;
+    // todo: check_sum rsd_ptr
+    // todo: mapping?
+
+    RSDT* rsdt = NULL;
+    switch(rsd_ptr->Revision) {
+        case 0: rsdt = (RSDT*) (uintptr_t) rsd_ptr->RsdtAddress; break;
+        case 2: rsdt = (RSDT*) rsd_ptr->XsdtAddress; break;
+        default: panic("Wrong ACPI version");
+    }
+
+    // todo: validate rsdt
+    int n_sdt = (rsdt->h.Length - sizeof(rsdt->h)) / sizeof(rsdt->PointerToOtherSDT[0]);
+    for (int i = 0; i < n_sdt; ++i) {
+        ACPISDTHeader* header = *((ACPISDTHeader**) rsdt->PointerToOtherSDT + i);
+        // todo: validate
+        // cprintf("%s\n", header->Signature);
+        if (!strncmp(header->Signature, sign, 4))
+            return header;
+    }
 
     return NULL;
 }
@@ -98,8 +118,11 @@ get_fadt(void) {
     // (use acpi_find_table)
     // HINT: ACPI table signatures are
     //       not always as their names
+    ACPISDTHeader* header = acpi_find_table("FACP");
+    if (!header) panic("No FADT header");
 
-    return NULL;
+    FADT* fad = (FADT*) header;
+    return fad;
 }
 
 /* Obtain and map RSDP ACPI table address. */
@@ -107,8 +130,10 @@ HPET *
 get_hpet(void) {
     // LAB 5: Your code here
     // (use acpi_find_table)
-
-    return NULL;
+    ACPISDTHeader* header = acpi_find_table("HPET");
+    if (!header) panic("No HPET header");
+    // map hpet address ?
+    return (HPET*) header;
 }
 
 /* Getting physical HPET timer address from its table. */
@@ -209,11 +234,29 @@ hpet_get_main_cnt(void) {
 void
 hpet_enable_interrupts_tim0(void) {
     // LAB 5: Your code here
+    if(!hpetReg) panic("No hpetReg");
+
+    hpetReg->GEN_CONF |= HPET_LEG_RT_CNF;
+
+    hpetReg->TIM0_CONF |= HPET_TN_VAL_SET_CNF;
+    hpetReg->TIM0_CONF |= (HPET_TN_INT_ENB_CNF | HPET_TN_TYPE_CNF);
+    hpetReg->TIM0_COMP = hpetFreq * 0.5;
+
+    pic_irq_unmask(IRQ_TIMER); 
 }
 
 void
 hpet_enable_interrupts_tim1(void) {
     // LAB 5: Your code here
+    if(!hpetReg) panic("No hpetReg");
+
+    hpetReg->GEN_CONF |= HPET_LEG_RT_CNF;
+
+    hpetReg->TIM1_CONF |= HPET_TN_VAL_SET_CNF;
+    hpetReg->TIM1_CONF |= (HPET_TN_INT_ENB_CNF | HPET_TN_TYPE_CNF);
+    hpetReg->TIM1_COMP = hpetFreq * 1.5;
+
+    pic_irq_unmask(IRQ_CLOCK);
 }
 
 void
