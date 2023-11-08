@@ -173,7 +173,7 @@ typedef struct {
 #pragma pack(pop)
 
 void acpi_enable(void);
-RSDP *get_rsdp(void);
+// RSDP *get_rsdp(void); ?? WTF?
 FADT *get_fadt(void);
 HPET *get_hpet(void);
 
