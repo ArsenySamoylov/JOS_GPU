@@ -195,7 +195,7 @@ hpet_init() {
 
         // cprintf("hpetFemto = %llu\n", hpetFemto);
         hpetFreq = (1 * Peta) / hpetFemto;
-        // cprintf("HPET: Frequency = %d.%03dMHz\n", (uintptr_t)(hpetFreq / Mega), (uintptr_t)(hpetFreq % Mega));
+        cprintf("HPET: Frequency = %lu.%03luMHz\n", (uintptr_t)(hpetFreq / Mega), (uintptr_t)(hpetFreq % Mega));
         /* Enable ENABLE_CNF bit to enable timer */
         hpetReg->GEN_CONF |= HPET_ENABLE_CNF;
         nmi_enable();
@@ -270,6 +270,38 @@ hpet_handle_interrupts_tim1(void) {
     pic_send_eoi(IRQ_CLOCK);
 }
 
+static void 
+hpet_measure_ticks(const uint64_t HpetTicksDuration, uint64_t* HpetTicksDelta, uint64_t* TicksDelta) {
+    uint64_t hpet_tick0, hpet_tick1;
+    uint64_t hpet_current_delta;
+
+    uint64_t tsc_tick0, tsc_tick1;
+
+    hpet_tick0 = hpet_get_main_cnt();
+    tsc_tick0  = read_tsc();
+
+    do {
+    asm volatile ("pause");
+
+    hpet_tick1 = hpet_get_main_cnt();
+
+    if (hpet_tick0 < hpet_tick1)
+        hpet_current_delta = hpet_tick1 - hpet_tick0;
+    else
+        hpet_current_delta = UINT64_MAX - hpet_tick0 + hpet_tick1;
+    
+    } while(hpet_current_delta < HpetTicksDuration);
+
+    tsc_tick1 = read_tsc();
+    
+    if (tsc_tick0 < tsc_tick1)
+        *TicksDelta =  tsc_tick1 - tsc_tick0;
+    else
+        *TicksDelta =  UINT64_MAX + tsc_tick1 - tsc_tick0;
+    
+    *HpetTicksDelta = hpet_current_delta;
+}
+
 /* Calculate CPU frequency in Hz with the help with HPET timer.
  * HINT Use hpet_get_main_cnt function and do not forget about
  * about pause instruction. */
@@ -278,6 +310,19 @@ hpet_cpu_frequency(void) {
     static uint64_t cpu_freq;
 
     // LAB 5: Your code here
+    if (!cpu_freq) {
+        if (!hpetFreq) panic("No HpaetFreq\n");
+        const uint64_t HpetTicksDuration = hpetFreq / 10;
+         
+        uint64_t HpetTicksDelta;
+        uint64_t TscTicksDelta;
+
+        nmi_disable();
+        hpet_measure_ticks(HpetTicksDuration, &HpetTicksDelta, &TscTicksDelta);
+        nmi_enable();
+
+        cpu_freq = (TscTicksDelta * hpetFreq) / HpetTicksDelta;
+    }
 
     return cpu_freq;
 }
@@ -288,6 +333,60 @@ pmtimer_get_timeval(void) {
     return inl(fadt->PMTimerBlock);
 }
 
+#define UINT24_MAX 0x00ffffffU
+
+static void 
+AsmMeasureTicks (uint32_t AcpiTicksDuration, uint32_t *AcpiTicksDelta, uint64_t *TscTicksDelta) {
+  uint32_t  AcpiTick0;
+  uint32_t  AcpiTick1;
+  uint32_t  AcpiCurrentDelta;
+  uint64_t  Tsc0;
+  uint64_t  Tsc1;
+
+  AcpiTick0 = pmtimer_get_timeval();
+  Tsc0      = read_tsc();
+
+  do {
+    asm volatile ("pause");
+
+    //
+    // Check how many AcpiTicks have passed since we started.
+    //
+    AcpiTick1 = pmtimer_get_timeval();
+
+    if (AcpiTick0 <= AcpiTick1) {
+      //
+      // No overflow.
+      //
+      AcpiCurrentDelta = AcpiTick1 - AcpiTick0;
+    } else if (AcpiTick0 - AcpiTick1 <= UINT24_MAX) {
+      //
+      // Overflow, 24-bit timer.
+      //
+      AcpiCurrentDelta = UINT24_MAX - AcpiTick0 + AcpiTick1;
+    } else {
+      //
+      // Overflow, 32-bit timer.
+      //
+      AcpiCurrentDelta = UINT32_MAX - AcpiTick0 + AcpiTick1;
+    }
+
+    //
+    // Keep checking AcpiTicks until target is reached.
+    //
+  } while (AcpiCurrentDelta < AcpiTicksDuration);
+
+  Tsc1 = read_tsc();
+
+  //
+  // On some systems we may end up waiting for notably longer than 100ms,
+  // despite disabling all events. Divide by actual time passed as suggested
+  // by asava's Clover patch r2668.
+  //
+  *TscTicksDelta  = Tsc1 - Tsc0;
+  *AcpiTicksDelta = AcpiCurrentDelta;
+}
+
 /* Calculate CPU frequency in Hz with the help with ACPI PowerManagement timer.
  * HINT Use pmtimer_get_timeval function and do not forget that ACPI PM timer
  *      can be 24-bit or 32-bit. */
@@ -296,6 +395,17 @@ pmtimer_cpu_frequency(void) {
     static uint64_t cpu_freq;
 
     // LAB 5: Your code here
+    if (!cpu_freq) {        
+        uint64_t AcpiTicksDuration = PM_FREQ / 10;
+        uint32_t AcpiTicksDelta;
+        uint64_t TscTicksDelta;
 
+        nmi_disable();
+        AsmMeasureTicks (AcpiTicksDuration, &AcpiTicksDelta, &TscTicksDelta);
+        nmi_enable();
+
+        cpu_freq = (TscTicksDelta * PM_FREQ) / AcpiTicksDelta;
+    }
+    
     return cpu_freq;
 }
