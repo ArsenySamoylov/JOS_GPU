@@ -317,9 +317,7 @@ hpet_cpu_frequency(void) {
         uint64_t HpetTicksDelta;
         uint64_t TscTicksDelta;
 
-        nmi_disable();
         hpet_measure_ticks(HpetTicksDuration, &HpetTicksDelta, &TscTicksDelta);
-        nmi_enable();
 
         cpu_freq = (TscTicksDelta * hpetFreq) / HpetTicksDelta;
     }
@@ -400,9 +398,7 @@ pmtimer_cpu_frequency(void) {
         uint32_t AcpiTicksDelta;
         uint64_t TscTicksDelta;
 
-        nmi_disable();
         AsmMeasureTicks (AcpiTicksDuration, &AcpiTicksDelta, &TscTicksDelta);
-        nmi_enable();
 
         cpu_freq = (TscTicksDelta * PM_FREQ) / AcpiTicksDelta;
     }
