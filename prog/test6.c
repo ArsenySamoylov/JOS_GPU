@@ -36,8 +36,16 @@ test_rec(void) {
 
 void
 umain(int argc, char **argv) {
+    #if !defined(GRADE3_TEST)
+    cprintf("TEST6 LOADED.\n");
+    #endif
+
     rand_init(5);
     for (;;) {
         test_rec();
     }
+
+    // #if !defined(GRADE3_TEST)
+    cprintf("TEST6 finished.\n");
+    // #endif
 }
