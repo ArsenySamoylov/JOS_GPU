@@ -78,7 +78,7 @@ test_alloc(uint8_t nbytes) {
         }
     }
 
-    spin_unlock(&allocator_lock);
+    panic("You can't reach here!");
 }
 
 /* free: put block ap in free list */
