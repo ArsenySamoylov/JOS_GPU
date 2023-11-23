@@ -69,12 +69,12 @@ void __nosan_memmove(void *, void *, size_t);
 #define MAX_ALLOCATION_CLASS 9
 
 enum PageState {
-    MAPPING_NODE = 0x100000,      /* Memory mapping (part of virtual tree) */
-    INTERMEDIATE_NODE = 0x200000, /* Intermediate node of virtual memory tree */
-    PARTIAL_NODE = 0x300000,      /* Intermediate node of physical memory tree */
-    ALLOCATABLE_NODE = 0x400000,  /* Generic allocatable memory (part of physical tree) */
-    RESERVED_NODE = 0x500000,     /* Reserved memory (part of physical tree) */
-    NODE_TYPE_MASK = 0xF00000,
+    MAPPING_NODE      = 0x100000,  /* Memory mapping (part of virtual tree) */
+    INTERMEDIATE_NODE = 0x200000,  /* Intermediate node of virtual memory tree */
+    PARTIAL_NODE      = 0x300000,  /* Intermediate node of physical memory tree */
+    ALLOCATABLE_NODE  = 0x400000,  /* Generic allocatable memory (part of physical tree) */
+    RESERVED_NODE     = 0x500000,  /* Reserved memory (part of physical tree) */
+    NODE_TYPE_MASK    = 0xF00000,
 };
 
 extern __attribute__((aligned(HUGE_PAGE_SIZE))) uint8_t zero_page_raw[HUGE_PAGE_SIZE];
@@ -94,7 +94,7 @@ struct Page {
             uintptr_t addr : sizeof(uintptr_t) * 8 - CLASS_BASE; /* = address >> CLASS_BASE */
         };
         /* mapping */
-        struct Page *phy; /* If phy == NULL this is intemediate page */
+        struct Page *phy; /* If phy == NULL this is intermediate page */
     };
 };
 
