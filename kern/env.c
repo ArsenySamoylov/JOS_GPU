@@ -159,7 +159,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     // TODO: come up with better algrorithm for allocating stack
     static uintptr_t stack_top = 0x2000000;
     env->env_tf.tf_rsp = stack_top;
-    stack_top += PAGE_SIZE*2;
+    stack_top -= PAGE_SIZE*2;
 
 #else
     env->env_tf.tf_ds = GD_UD | 3;
