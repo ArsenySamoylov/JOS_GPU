@@ -200,10 +200,10 @@ static uint64_t freq = 0;
 
 void
 timer_start(const char *name) {
-    if (timer_started) {
-        cprintf("Timer '%s' already stared\n", timertab[timer_id].timer_name);
-        return;
-    }
+    // if (timer_started) {
+        // cprintf("Timer '%s' already stared\n", timertab[timer_id].timer_name);
+        // return;
+    // }
 
     for (int i = 0; i < MAX_TIMERS; i++) {
         if (timertab[i].timer_name && !strcmp(timertab[i].timer_name, name)){
