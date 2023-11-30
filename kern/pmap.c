@@ -205,7 +205,7 @@ alloc_child(struct Page *parent, bool right) {
         parent->left  = new;
     }
 
-    list_append((struct List*) parent, (struct List*) new);
+    // list_append((struct List*) parent, (struct List*) new);
     // cprintf("%s: allocated new: %p\n\n", __func__, new);
     return new;
 }
@@ -377,6 +377,10 @@ dump_entry(pte_t base, size_t step, bool isz) {
             step);
 }
 
+#define $ cprintf("%s:%d I am here\n", __func__, __LINE__);
+#define $P(PAGE) cprintf(#PAGE ": %p \n\thead:: prev: %p, "    "next: %p\n\t""left: %p, right: %p\n\t class: %d, class_size: %llu\n\t addr: %p\n", \
+                         PAGE,    PAGE->head.prev, PAGE->head.next,  PAGE->left, PAGE->right, PAGE->class, CLASS_SIZE(PAGE->class), (void*)page2pa(PAGE));
+
 static void
 check_physical_tree(struct Page *page) {
     assert_physical(page);
@@ -407,6 +411,9 @@ check_physical_tree(struct Page *page) {
             for (struct List *n = page->head.next;
                  n != &free_classes[page->class]; n = n->next) {
                 assert(n != &page->head);
+            $
+            cprintf("n: %p\n", n);
+            // $P(((struct Page*)n)); 
             }
         }
     } else {
@@ -415,6 +422,7 @@ check_physical_tree(struct Page *page) {
             struct Page *v = (struct Page *)n;
             assert_virtual(v);
             assert(v->phy == page);
+            $
         }
     }
     if (page->left) {
