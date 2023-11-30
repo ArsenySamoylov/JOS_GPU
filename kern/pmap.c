@@ -83,6 +83,9 @@ list_init(struct List *list) {
 inline static void __attribute__((always_inline))
 list_append(struct List *list, struct List *new) {
     // LAB 6: Your code here
+    new->next = list->next;
+    new->prev = list;
+    list->next = new;
 }
 
 /*
@@ -92,7 +95,13 @@ list_append(struct List *list, struct List *new) {
 inline static struct List *__attribute__((always_inline))
 list_del(struct List *list) {
     // LAB 6: Your code here
+    struct List *prev_l = list->prev;
+    struct List *next_l = list->next; 
 
+    prev_l->next = next_l;
+    next_l->prev = prev_l;
+
+    list_init(list);
     return list;
 }
 
@@ -173,9 +182,31 @@ alloc_child(struct Page *parent, bool right) {
     assert(parent);
 
     // LAB 6: Your code here
+    struct Page *new = alloc_descriptor(PARTIAL_NODE);
+    new->parent = parent;
+    new->state  = parent->state;
 
-    struct Page *new = NULL;
+    assert(parent->state != MAPPING_NODE); // if state == MAPPING_NODE, than union interpreted as '*phy'
+    // cprintf("%s: parent: %p, class: %d, right: %d\n", 
+            // __func__, parent, parent->class, right);
+    // cprintf("%s: free_descriptors: %p\n", __func__, &free_descriptors);
+    assert(parent->class > 0);
 
+    new->refc   = parent->refc ? 1 : 0;
+    new->class  = parent->class - 1; 
+
+    if (right) { 
+        // posible overflow
+        new->addr     = parent->addr + (1ULL << (parent->class - 1));
+        parent->right = new;
+    }
+    else {
+        new->addr     = parent->addr;
+        parent->left  = new;
+    }
+
+    list_append((struct List*) parent, (struct List*) new);
+    // cprintf("%s: allocated new: %p\n\n", __func__, new);
     return new;
 }
 
@@ -522,11 +553,14 @@ detect_memory(void) {
 
     /* Attach first page as reserved memory */
     // LAB 6: Your code here
+    attach_region(0, PAGE_SIZE, RESERVED_NODE);
 
     /* Attach kernel and old IO memory
      * (from IOPHYSMEM to the physical address of end label. end points the the
      *  end of kernel executable image.)*/
     // LAB 6: Your code here
+    assert((uintptr_t) &end - KERN_BASE_ADDR > EXTPHYSMEM);
+    attach_region((uintptr_t)IOPHYSMEM, (uintptr_t) &end - KERN_BASE_ADDR, RESERVED_NODE);
 
     /* Detect memory via ether UEFI or CMOS */
     if (uefi_lp && uefi_lp->MemoryMap) {
@@ -554,7 +588,7 @@ detect_memory(void) {
             /* Attach memory described by memory map entry described by start
              * of type type*/
             // LAB 6: Your code here
-            (void)type;
+            attach_region((uintptr_t)start, uefi_lp->MemoryMapDescriptorSize, type);
 
             start = (void *)((uint8_t *)start + uefi_lp->MemoryMapDescriptorSize);
         }
