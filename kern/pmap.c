@@ -444,15 +444,23 @@ static void
 attach_region(uintptr_t start, uintptr_t end, enum PageState type) {
     if (trace_memory_more)
         cprintf("Attaching memory region [%08lX, %08lX] with type %d\n", start, end - 1, type);
+    
     int class = 0, res = 0;
-
     (void)class;
     (void)res;
 
-    start = ROUNDDOWN(start, CLASS_SIZE(0));
-    end = ROUNDUP(end, CLASS_SIZE(0));
-
     // LAB 6: Your code here
+    for (int i = 0; i < MAX_CLASS; ++i) {
+        uintptr_t start_aligned = ROUNDDOWN(start, CLASS_SIZE(i));
+        uintptr_t end_alinged   = ROUNDUP  (end,   CLASS_SIZE(i));
+        size_t size = end_alinged - start_aligned;
+        
+        if (size <= CLASS_SIZE(i)) {
+            struct Page* new = page_lookup(NULL, start_aligned, i, type, 1);
+            assert(new);
+            return;
+        }
+    }
 }
 
 static void
