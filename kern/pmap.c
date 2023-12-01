@@ -471,6 +471,13 @@ dump_virtual_tree(struct Page *node, int class) {
 void
 dump_memory_lists(void) {
     // LAB 6: Your code here
+    for (int i = 0; i < MAX_CLASS; ++i) {
+        cprintf("free_classes[%d] (%p) p:%p n:%p\n", i, free_classes+i, free_classes[i].prev, free_classes[i].next);
+        for(struct List* l = free_classes[i].next; l != &free_classes[i]; l = l->next) {
+            struct Page* p = (struct Page*)(l);
+            cprintf("Page [%lx, %llx] class: %d\n", PADDR(p), PADDR(p) + CLASS_SIZE(p->class), p->class);
+        }
+    }
 }
 
 
