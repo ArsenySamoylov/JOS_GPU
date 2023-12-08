@@ -194,9 +194,6 @@ alloc_child(struct Page *parent, bool right) {
     new->state  = parent->state;
 
     assert(parent->state != MAPPING_NODE); // if state == MAPPING_NODE, than union interpreted as '*phy'
-    // cprintf("%s: parent: %p, class: %d, right: %d\n", 
-            // __func__, parent, parent->class, right);
-    // cprintf("%s: free_descriptors: %p\n", __func__, &free_descriptors);
     assert(parent->class > 0);
 
     new->refc   = parent->refc ? 1 : 0;
@@ -212,8 +209,6 @@ alloc_child(struct Page *parent, bool right) {
         parent->left  = new;
     }
 
-    // list_append((struct List*) parent, (struct List*) new);
-    // cprintf("%s: allocated new: %p\n\n", __func__, new);
     return new;
 }
 
@@ -455,8 +450,6 @@ attach_region(uintptr_t start, uintptr_t end, enum PageState type) {
 
     while (start < end) {
         for (int i = MAX_CLASS; i >= 0; --i) {
-            // cprintf("Start: %p, End: %p, page_addr: %p\n", (void*) start, (void*) end, (void*) (start >> CLASS_BASE));
-            // cprintf("CLASS: %d CLASS_MASK: %p\n", i, (void*) (CLASS_MASK(i)));
             if (start & CLASS_MASK(i))
                 continue;
 
@@ -556,10 +549,6 @@ dump_entry(pte_t base, size_t step, bool isz) {
             step);
 }
 
-#define $ cprintf("%s:%d I am here\n", __func__, __LINE__);
-#define $P(PAGE) cprintf(#PAGE ": %p \n\thead:: prev: %p, "    "next: %p\n\t""left: %p, right: %p\n\t class: %d, class_size: %llu\n\t addr: %p\n", \
-                         PAGE,    PAGE->head.prev, PAGE->head.next,  PAGE->left, PAGE->right, PAGE->class, CLASS_SIZE(PAGE->class), (void*)page2pa(PAGE));
-
 static void
 check_physical_tree(struct Page *page) {
     assert_physical(page);
@@ -590,9 +579,6 @@ check_physical_tree(struct Page *page) {
             for (struct List *n = page->head.next;
                  n != &free_classes[page->class]; n = n->next) {
                 assert(n != &page->head);
-            $
-            cprintf("n: %p\n", n);
-            // $P(((struct Page*)n)); 
             }
         }
     } else {
@@ -601,7 +587,6 @@ check_physical_tree(struct Page *page) {
             struct Page *v = (struct Page *)n;
             assert_virtual(v);
             assert(v->phy == page);
-            $
         }
     }
     if (page->left) {
