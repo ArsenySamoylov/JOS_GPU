@@ -342,18 +342,31 @@ attach_region(uintptr_t start, uintptr_t end, enum PageState type) {
     (void)res;
 
     // LAB 6: Your code here
-    for (int i = 0; i < MAX_CLASS; ++i) {
-        uintptr_t start_aligned = ROUNDDOWN(start, CLASS_SIZE(i));
-        uintptr_t end_alinged   = ROUNDUP  (end,   CLASS_SIZE(i));
-        size_t size = end_alinged - start_aligned;
-        
-        if (size <= CLASS_SIZE(i)) {
-            struct Page* new = page_lookup(NULL, start_aligned, i, type, 1);
+    start = ROUNDDOWN(start, CLASS_SIZE(0));
+    end   = ROUNDUP  (end,   CLASS_SIZE(0));
+
+    while (start < end) {
+        for (int i = MAX_CLASS; i >= 0; --i) {
+            // cprintf("Start: %p, End: %p, page_addr: %p\n", (void*) start, (void*) end, (void*) (start >> CLASS_BASE));
+            // cprintf("CLASS: %d CLASS_MASK: %p\n", i, (void*) (CLASS_MASK(i)));
+            if (start & CLASS_MASK(i))
+                continue;
+
+            if (start + CLASS_SIZE(i) > end) // possible overflow
+                continue;
+
+            if (start + CLASS_SIZE(i) == end &&
+               (end  & CLASS_MASK(i)))
+                continue;
+
+            struct Page* new = page_lookup(NULL, start, i, type, 1);
             assert(new);
-            return;
+            start += CLASS_SIZE(i);
+            break;
+            }
+
         }
     }
-}
 
 /*
  * Helper function for dumping single page table
