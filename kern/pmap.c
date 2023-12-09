@@ -581,7 +581,7 @@ detect_memory(void) {
      *  end of kernel executable image.)*/
     // LAB 6: Your code here
     assert((uintptr_t) &end - KERN_BASE_ADDR > EXTPHYSMEM);
-    attach_region((uintptr_t)IOPHYSMEM, (uintptr_t) &end - KERN_BASE_ADDR, RESERVED_NODE);
+    attach_region((uintptr_t)IOPHYSMEM, PADDR(&end), RESERVED_NODE);
 
     /* Detect memory via ether UEFI or CMOS */
     if (uefi_lp && uefi_lp->MemoryMap) {
@@ -609,7 +609,7 @@ detect_memory(void) {
             /* Attach memory described by memory map entry described by start
              * of type type*/
             // LAB 6: Your code here
-            attach_region((uintptr_t)start, uefi_lp->MemoryMapDescriptorSize, type);
+            attach_region(start->PhysicalStart, start->PhysicalStart + start->NumberOfPages * PAGE_SIZE, type);
 
             start = (void *)((uint8_t *)start + uefi_lp->MemoryMapDescriptorSize);
         }
