@@ -3,7 +3,6 @@
 #include <inc/string.h>
 #include <kern/pci.h>
 #include <kern/pcireg.h>
-#include <kern/e1000.h>
 
 // Flag to do "lspci" at bootup
 static int pci_show_devs = 1;
@@ -28,12 +27,6 @@ struct pci_driver pci_attach_class[] = {
 	{ 0, 0, 0 },
 };
 
-// pci_attach_vendor matches the vendor ID and device ID of a PCI device. key1
-// and key2 should be the vendor ID and device ID respectively
-struct pci_driver pci_attach_vendor[] = {
-	{E1000_VENDOR_ID, E1000_DEV_ID_82540EM, &e1000_attach_fn},
-	{ 0, 0, 0 },
-};
 
 static void
 pci_conf1_set_addr(uint32_t bus,
@@ -79,8 +72,8 @@ pci_attach_match(uint32_t key1, uint32_t key2,
 				return r;
 			if (r < 0)
 				cprintf("pci_attach_match: attaching "
-					"%x.%x (%p): e\n",
-					key1, key2, list[i].attachfn, r);
+					"%x.%x (%p): e\n", // wtf is 'e'? 
+					key1, key2, list[i].attachfn); //, r);
 		}
 	}
 	return 0;
@@ -92,10 +85,7 @@ pci_attach(struct pci_func *f)
 	return
 		pci_attach_match(PCI_CLASS(f->dev_class),
 				 PCI_SUBCLASS(f->dev_class),
-				 &pci_attach_class[0], f) ||
-		pci_attach_match(PCI_VENDOR(f->dev_id),
-				 PCI_PRODUCT(f->dev_id),
-				 &pci_attach_vendor[0], f);
+				 &pci_attach_class[0], f);
 }
 
 static const char *pci_class[] =
