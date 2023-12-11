@@ -18,6 +18,7 @@
 #include <kern/kclock.h>
 #include <kern/kdebug.h>
 #include <kern/traceopt.h>
+#include <kern/pci.h>
 
 void
 timers_init(void) {
@@ -151,6 +152,9 @@ i386_init(void) {
     fb_init();
     if (trace_init) cprintf("Framebuffer initialised\n");
 
+    // GPU Lab
+    pci_init();
+    
     /* User environment initialization functions */
     env_init();
 
