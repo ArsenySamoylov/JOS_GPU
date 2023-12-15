@@ -19,6 +19,7 @@
 #include <kern/kdebug.h>
 #include <kern/traceopt.h>
 #include <kern/pci.h>
+#include <kern/virtio-gpu.h>
 
 void
 timers_init(void) {
@@ -149,8 +150,8 @@ i386_init(void) {
     timers_init();
 
     /* Framebuffer init should be done after memory init */
-    fb_init();
-    if (trace_init) cprintf("Framebuffer initialised\n");
+    // fb_init();
+    // if (trace_init) cprintf("Framebuffer initialised\n");
 
     // GPU Lab
     pci_init();

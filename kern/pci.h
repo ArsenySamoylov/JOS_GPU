@@ -30,4 +30,7 @@ struct pci_bus {
 int  pci_init(void);
 void pci_func_enable(struct pci_func *f);
 
+void pci_conf_write(struct pci_func *f, uint32_t off, uint32_t v);
+uint32_t pci_conf_read(struct pci_func *f, uint32_t off);
+
 #endif

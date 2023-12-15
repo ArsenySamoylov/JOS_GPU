@@ -3,6 +3,7 @@
 #include <inc/string.h>
 #include <kern/pci.h>
 #include <kern/pcireg.h>
+#include <kern/virtio-gpu.h>
 
 // Flag to do "lspci" at bootup
 static int pci_show_devs = 1;
@@ -14,6 +15,7 @@ static uint32_t pci_conf1_data_ioport = 0x0cfc;
 
 // Forward declarations
 static int pci_bridge_attach(struct pci_func *pcif);
+static int pci_vga_attach(struct pci_func *pcif);
 
 // PCI driver table
 struct pci_driver {
@@ -24,9 +26,9 @@ struct pci_driver {
 // pci_attach_class matches the class and subclass of a PCI device
 struct pci_driver pci_attach_class[] = {
 	{ PCI_CLASS_BRIDGE, PCI_SUBCLASS_BRIDGE_PCI, &pci_bridge_attach },
+	{ PCI_CLASS_DISPLAY, PCI_SUBCLASS_DISPLAY_VGA, &pci_vga_attach },
 	{ 0, 0, 0 },
 };
-
 
 static void
 pci_conf1_set_addr(uint32_t bus,
@@ -45,14 +47,14 @@ pci_conf1_set_addr(uint32_t bus,
 	outl(pci_conf1_addr_ioport, v);
 }
 
-static uint32_t
+uint32_t
 pci_conf_read(struct pci_func *f, uint32_t off)
 {
 	pci_conf1_set_addr(f->bus->busno, f->dev, f->func, off);
 	return inl(pci_conf1_data_ioport);
 }
 
-static void
+void
 pci_conf_write(struct pci_func *f, uint32_t off, uint32_t v)
 {
 	pci_conf1_set_addr(f->bus->busno, f->dev, f->func, off);
@@ -174,6 +176,11 @@ pci_bridge_attach(struct pci_func *pcif)
 			(busreg >> PCI_BRIDGE_BUS_SUBORDINATE_SHIFT) & 0xff);
 
 	pci_scan_bus(&nbus);
+	return 1;
+}
+
+static int pci_vga_attach(struct pci_func *pcif) {
+	init_gpu(pcif);
 	return 1;
 }
 
