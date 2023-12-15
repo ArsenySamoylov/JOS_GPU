@@ -10,8 +10,8 @@ static int pci_show_devs = 1;
 static int pci_show_addrs = 0;
 
 // PCI "configuration mechanism one"
-static uint32_t pci_conf1_addr_ioport = 0x0cf8;
-static uint32_t pci_conf1_data_ioport = 0x0cfc;
+static uint32_t PCI_CONF_ADDR_PORT = 0x0cf8;
+static uint32_t PCI_CONF_DATA_PORT = 0x0cfc;
 
 // Forward declarations
 static int pci_bridge_attach(struct pci_func *pcif);
@@ -44,21 +44,21 @@ pci_conf1_set_addr(uint32_t bus,
 
 	uint32_t v = (1 << 31) |		// config-space
 		(bus << 16) | (dev << 11) | (func << 8) | (offset);
-	outl(pci_conf1_addr_ioport, v);
+	outl(PCI_CONF_ADDR_PORT, v);
 }
 
 uint32_t
 pci_conf_read(struct pci_func *f, uint32_t off)
 {
 	pci_conf1_set_addr(f->bus->busno, f->dev, f->func, off);
-	return inl(pci_conf1_data_ioport);
+	return inl(PCI_CONF_DATA_PORT);
 }
 
 void
 pci_conf_write(struct pci_func *f, uint32_t off, uint32_t v)
 {
 	pci_conf1_set_addr(f->bus->busno, f->dev, f->func, off);
-	outl(pci_conf1_data_ioport, v);
+	outl(PCI_CONF_DATA_PORT, v);
 }
 
 uint32_t pci_conf_read_sized(struct pci_func *f, uint32_t off, uint32_t size) {
