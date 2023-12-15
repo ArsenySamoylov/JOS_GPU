@@ -61,6 +61,64 @@ pci_conf_write(struct pci_func *f, uint32_t off, uint32_t v)
 	outl(pci_conf1_data_ioport, v);
 }
 
+uint32_t pci_conf_read_sized(struct pci_func *f, uint32_t off, uint32_t size) {
+	assert((off & -size) == off);
+ 	// Field requested must begin and end in the same 32 bit range
+    assert((off & -4) == ((off + size - 1) & -4));
+
+	uint32_t reg = pci_conf_read(f, off & -4);
+	
+	// Shift right 8 bits for every byte of misalignment
+    // to put the requested data at the LSB
+	reg >>= (off & 3) << 3;
+
+	if (size != sizeof(uint32_t)) {
+		reg &= ~((uint32_t)-1 << (size << 3));
+	}
+
+	return reg;
+}
+
+//WARN: NOT CHECKED YET
+void pci_conf_write_sized(struct pci_func *f, uint32_t off, uint32_t size, uint32_t v) {
+	assert((off & -size) == off);
+ 	// Field requested must begin and end in the same 32 bit range
+    assert((off & -4) == ((off + size - 1) & -4));
+
+	uint32_t io_off = off & -4;
+	
+	// save least bytes
+	uint32_t preserve_mask = (1ul << ((off - io_off) * 8)) - 1;
+	
+	uint32_t high_bytes_mask = (1ul << ((io_off + sizeof(uint32_t) - off - size) * 8)) - 1;
+	high_bytes_mask <<= (sizeof(uint32_t) - (off - io_off) - size) * 8;
+	preserve_mask |= high_bytes_mask;
+
+	uint32_t old = 0;
+
+	if (preserve_mask) {
+		old = pci_conf_read(f, io_off);
+		old &= preserve_mask;
+	}
+
+	v <<= (off - io_off) * 8;
+
+	pci_conf_write(f, io_off, v);
+}
+
+void pci_memcpy_from(struct pci_func *f, uint32_t off, uint8_t *dest, uint32_t size) {
+	while (size > 0) {
+		uint32_t read_size = MIN(sizeof(uint32_t), size);
+
+		uint32_t chunk = pci_conf_read_sized(f, off, read_size);
+		memcpy(dest, &chunk, read_size);
+
+		size -= read_size;
+		dest += read_size;
+		off  += read_size;
+	}
+}
+
 static int __attribute__((warn_unused_result))
 pci_attach_match(uint32_t key1, uint32_t key2,
 		 struct pci_driver *list, struct pci_func *pcif)

@@ -30,7 +30,11 @@ struct pci_bus {
 int  pci_init(void);
 void pci_func_enable(struct pci_func *f);
 
-void pci_conf_write(struct pci_func *f, uint32_t off, uint32_t v);
 uint32_t pci_conf_read(struct pci_func *f, uint32_t off);
+void pci_conf_write(struct pci_func *f, uint32_t off, uint32_t v);
+
+uint32_t pci_conf_read_sized(struct pci_func *f, uint32_t off, uint32_t size);
+void pci_conf_write_sized(struct pci_func *f, uint32_t off, uint32_t size, uint32_t v);
+void pci_memcpy_from(struct pci_func *f, uint32_t off, uint8_t *dest, uint32_t size);
 
 #endif
