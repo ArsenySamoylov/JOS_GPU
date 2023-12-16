@@ -202,13 +202,14 @@ static void parse_common_cfg(struct pci_func *pcif, struct virtio_pci_cap_hdr_t*
     // Set DRIVER bit (we have driver for this device)
     cfg_header->device_status |= VIRTIO_STATUS_DRIVER;
     
-    // Get features
-    uint64_t features = cfg_header->device_feature;
-    features &= VIRTIO_F_VERSION_1 | VIRTIO_F_IOMMU_PLATFORM; // Most basic just for test
-
-    cfg_header->driver_feature        = features;
-    cfg_header->driver_feature_select = features;
-    cfg_header->device_feature_select = features;
+    // Get features (we accept all, lol)
+    // 4 is from dgos and maybe it is overkill, but not incorrect
+    for (int i = 0; i < 4; ++i) {
+        cfg_header->device_feature_select = i;
+        uint64_t features = cfg_header->device_feature;
+        cfg_header->driver_feature_select = i;
+        cfg_header->driver_feature = features;
+    }
 
     cfg_header->device_status |= VIRTIO_STATUS_FEATURES_OK;
 
@@ -218,12 +219,7 @@ static void parse_common_cfg(struct pci_func *pcif, struct virtio_pci_cap_hdr_t*
         return;
     }
 
-    cfg_header->driver_feature        = features;
-    cfg_header->driver_feature_select = features;
-    cfg_header->device_feature_select = features;
-
-    // Set FEATURES_OK flag
-    cfg_header->device_status |= VIRTIO_STATUS_FEATURES_OK;
+    // Set DRIVER_OK flag
     cfg_header->device_status |= VIRTIO_STATUS_DRIVER_OK;
 }
 
