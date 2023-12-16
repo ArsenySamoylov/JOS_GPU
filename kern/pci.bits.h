@@ -1548,3 +1548,24 @@
 #define PCI_MSIX_EXTCAP_NEXTOFS_SET(r,n) \
     ((r) = ((r) & ~PCI_MSIX_EXTCAP_NEXTOFS) | PCI_MSIX_EXTCAP_NEXTOFS_n((n)))
 
+#define VIRTIO_STATUS_ACKNOWLEDGE   1
+#define VIRTIO_STATUS_DRIVER        2
+#define VIRTIO_STATUS_DRIVER_OK     4
+#define VIRTIO_STATUS_FEATURES_OK   8
+#define VIRTIO_STATUS_NEED_RESET    64
+#define VIRTIO_STATUS_FAILED        128
+
+// Common configuration
+#define VIRTIO_PCI_CAP_COMMON_CFG   1
+
+// Notifications
+#define VIRTIO_PCI_CAP_NOTIFY_CFG   2
+
+// ISR Status
+#define VIRTIO_PCI_CAP_ISR_CFG      3
+
+// Device specific configuration
+#define VIRTIO_PCI_CAP_DEVICE_CFG   4
+
+// PCI configuration access
+#define VIRTIO_PCI_CAP_PCI_CFG      5
