@@ -3,6 +3,7 @@
 #include <kern/pci.h>
 
 void init_gpu(struct pci_func *pcif);
+void get_display_info();
 
 struct virtio_pci_cap_hdr_t {
     uint8_t cap_vendor;
