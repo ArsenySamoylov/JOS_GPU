@@ -2,6 +2,7 @@
 #include "virtio-queue.h"
 #include <inc/stdio.h>
 #include <kern/pcireg.h>
+#include <kern/pmap.h>
 #include <kern/pci.bits.h>
 #include <inc/string.h>
 
@@ -102,16 +103,16 @@ parse_common_cfg(struct pci_func *pcif, volatile struct virtio_pci_common_cfg_t 
     // Config two queues
 
     cfg_header->queue_select = CURSOR_VIRTQ;
-    cfg_header->queue_desc = (uint64_t)&cursorq.desc;
-    cfg_header->queue_avail = (uint64_t)&cursorq.desc;
-    cfg_header->queue_used = (uint64_t)&cursorq.used;
+    cfg_header->queue_desc  = (uint64_t)PADDR(&cursorq.desc);
+    cfg_header->queue_avail = (uint64_t)PADDR(&cursorq.desc);
+    cfg_header->queue_used  = (uint64_t)PADDR(&cursorq.used);
     cfg_header->queue_enable = 1;
     cursorq.log2_size = 6;
 
     cfg_header->queue_select = CONTROL_VIRTQ;
-    cfg_header->queue_desc = (uint64_t)&controlq.desc;
-    cfg_header->queue_avail = (uint64_t)&controlq.avail;
-    cfg_header->queue_used = (uint64_t)&controlq.used;
+    cfg_header->queue_desc  = (uint64_t)PADDR(&controlq.desc);
+    cfg_header->queue_avail = (uint64_t)PADDR(&controlq.avail);
+    cfg_header->queue_used  = (uint64_t)PADDR(&controlq.used);
     cfg_header->queue_enable = 1;
     controlq.log2_size = 6;
 
@@ -242,14 +243,14 @@ queue_avail(struct virtq *queue, uint32_t count) {
 static void
 send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_t send_size, void *to_recieve, uint64_t recieve_size) {
     // TODO rewrite
-    queue->desc[0].addr = (uint64_t)to_send;
+    queue->desc[0].addr = (uint64_t)PADDR(to_send);
     queue->desc[0].len = send_size;
     queue->desc[0].flags = 0;
     queue->desc[0].next = -1;
     cprintf("&queue->desc[0].addr: %p\n", (void *)&queue->desc[0].addr);
     cprintf("queue->desc[0].addr %lx to send: %lx\n",queue->desc[0].addr, (uint64_t)to_send);
 
-    queue->desc[1].addr = (uint64_t)to_recieve;
+    queue->desc[1].addr = (uint64_t)PADDR(to_recieve);
     queue->desc[1].len = recieve_size;
     queue->desc[1].flags = VIRTQ_DESC_F_WRITE;
     queue->desc[1].next = -1;
@@ -258,7 +259,6 @@ send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_
     queue_avail(queue, 2);
     notify_queue(queue, queue_idx);
 }
-
 
 void
 get_display_info() {
