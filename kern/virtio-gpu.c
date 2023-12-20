@@ -115,6 +115,8 @@ parse_common_cfg(struct pci_func *pcif, volatile struct virtio_pci_common_cfg_t 
     cfg_header->queue_enable = 1;
     controlq.log2_size = 6;
 
+    cprintf("controlq.desc %lx\n", (uint64_t)&controlq.desc);
+
     // Set DRIVER_OK flag
     cfg_header->device_status |= VIRTIO_STATUS_DRIVER_OK;
 }
@@ -136,6 +138,10 @@ init_gpu(struct pci_func *pcif) {
 
     // Get Capability List pointer
     uint8_t cap_offset = get_capabilities_ptr(pcif);
+    uint8_t cap_offset_old = cap_offset;
+    uint64_t notify_cap_size = 0;
+    uint32_t notify_cap_offset = 0;
+    uint32_t notify_off_multiplier = 0;
 
     // Iterate over capabilities and parse them
     while (cap_offset != 0) {
@@ -145,16 +151,15 @@ init_gpu(struct pci_func *pcif) {
         // Search for vendor specific header
         while (cap_header.cap_vendor != PCI_CAP_VENDSPEC) {
             pci_memcpy_from(pcif, cap_offset, (uint8_t *)&cap_header, sizeof(cap_header));
+            cap_offset_old = cap_offset;
             cap_offset = cap_header.cap_next;
         }
 
         uint64_t addr;
-        uint64_t notify_cap_size = 0;
-        uint32_t notify_cap_offset = 0;
-        uint32_t notify_off_multiplier = 0;
+
         uint64_t notify_reg;
         uint64_t bar_addr;
-    
+
         volatile struct virtio_pci_common_cfg_t *common_cfg_ptr;
 
         switch (cap_header.type) {
@@ -167,6 +172,7 @@ init_gpu(struct pci_func *pcif) {
 
             cprintf("queue_notify_off 0x%x\n", common_cfg_ptr->queue_notify_off);
             cprintf("notify reg 0x%lx\n", notify_reg);
+
             if (notify_cap_size < common_cfg_ptr->queue_notify_off * notify_off_multiplier + 2) {
                 cprintf("Wrong size\n");
             }
@@ -179,10 +185,11 @@ init_gpu(struct pci_func *pcif) {
             notify_cap_size = cap_header.length;
             notify_cap_offset = cap_header.offset;
 
-            pci_memcpy_from(pcif, cap_offset + sizeof(cap_header),
+            pci_memcpy_from(pcif, cap_offset_old + sizeof(cap_header),
                             (uint8_t *)&notify_off_multiplier, sizeof(notify_off_multiplier));
 
             cprintf("notify off mul 0x%x\n", notify_off_multiplier);
+            cprintf("notify cap size %ld\n", notify_cap_size);
             break;
         case VIRTIO_PCI_CAP_ISR_CFG: break;
         case VIRTIO_PCI_CAP_DEVICE_CFG: break;
@@ -200,7 +207,6 @@ init_gpu(struct pci_func *pcif) {
 static void
 notify_queue(struct virtq *queue, uint16_t queue_idx) {
     atomic_st_rel(&queue->notify_reg, queue_idx);
-    // cprintf("queue->avail = %p head = %u\n", queue->avail,  avail_head);
 }
 
 static void
@@ -223,6 +229,7 @@ queue_avail(struct virtq *queue, uint32_t count) {
         if (!skip && chain_start != ~((uint32_t)0))
             queue->avail.ring[avail_head++ & mask] = chain_start;
     }
+    cprintf("avail head %d\n", avail_head);
     atomic_st_rel(&queue->avail.used_event, avail_head - 1);
 
     // Update idx (tell virtio where we would put the next new item)
@@ -239,12 +246,15 @@ send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_
     queue->desc[0].len = send_size;
     queue->desc[0].flags = 0;
     queue->desc[0].next = -1;
+    cprintf("&queue->desc[0].addr: %p\n", (void *)&queue->desc[0].addr);
+    cprintf("queue->desc[0].addr %lx to send: %lx\n",queue->desc[0].addr, (uint64_t)to_send);
 
     queue->desc[1].addr = (uint64_t)to_recieve;
     queue->desc[1].len = recieve_size;
     queue->desc[1].flags = VIRTQ_DESC_F_WRITE;
     queue->desc[1].next = -1;
 
+    cprintf("avail idx addr %p\n", (void *)&queue->avail.idx);
     queue_avail(queue, 2);
     notify_queue(queue, queue_idx);
 }
@@ -259,6 +269,8 @@ get_display_info() {
     memset(&res, 0, sizeof(res));
 
     send_and_recieve(&controlq, 0, &display_info, sizeof(display_info), &res, sizeof(res));
+    // send_and_recieve(&cursorq, 1, &display_info, sizeof(display_info), &res, sizeof(res));
+
     while (atomic_ld_acq(&res.pmodes[0].r.width) == 0)
         ;
     cprintf("Display size %dx%d\n", res.pmodes[0].r.width, res.pmodes[0].r.height);
