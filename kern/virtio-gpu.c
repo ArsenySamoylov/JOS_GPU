@@ -15,6 +15,7 @@ map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
 static void setup_queue(struct virtq *queue);
 
 volatile uint8_t *isr_status;
+struct virtio_gpu_config* gpu_conf;
 
 // ---------------------------------------------------------------------------------------------------------------------
 // defines
@@ -207,7 +208,9 @@ init_gpu(struct pci_func *pcif) {
             addr = cap_header.offset + get_bar(base_addrs, cap_header.bar);
             isr_status = (uint8_t *)addr;
             break;
-        case VIRTIO_PCI_CAP_DEVICE_CFG: break;
+        case VIRTIO_PCI_CAP_DEVICE_CFG:
+            gpu_conf = (struct virtio_gpu_config*) (cap_header.offset + get_bar(base_addrs, cap_header.bar));
+            break;
         case VIRTIO_PCI_CAP_PCI_CFG: break;
         default: break;
         }
@@ -325,6 +328,9 @@ get_display_info() {
     // send_and_recieve(&cursorq, 1, &display_info, sizeof(display_info), &res, sizeof(res));
 
     cprintf("Waiting for display, phys addr for res is %p....\n", (void *)PADDR(&res));
+
+    uint64_t i = 5000000; // ~ 1 sec
+
     while (res.hdr.type != VIRTIO_GPU_RESP_OK_DISPLAY_INFO) {
         uint8_t isr;
         // something happened in queue 1...
@@ -335,7 +341,15 @@ get_display_info() {
             cprintf("ISR = %d crossed our way\n", isr);
 
             recycle_used(&controlq);
+            notify_queue(&controlq, 0);
         }
+
+        if (!i) {
+            cprintf("%d %d %d\n", gpu_conf->events_read, gpu_conf->num_capsets, gpu_conf->num_scanouts);
+            i = 5000000;
+            gpu_conf->events_clear = 1;
+        }
+        --i;
     }
     cprintf("Display size %dx%d\n", res.pmodes[0].r.width, res.pmodes[0].r.height);
 }

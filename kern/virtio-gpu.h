@@ -16,6 +16,15 @@ struct virtio_pci_cap_hdr_t {
     uint32_t length;
 };
 
+#define VIRTIO_GPU_EVENT_DISPLAY (1 << 0)
+
+struct virtio_gpu_config {
+    uint32_t events_read;
+    uint32_t events_clear;
+    uint32_t num_scanouts;
+    uint32_t num_capsets;
+};
+
 struct pci_config_hdr_t {
     // 0x00
     uint16_t vendor;
