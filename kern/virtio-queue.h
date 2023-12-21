@@ -72,6 +72,9 @@ struct virtq_used {
 struct virtq {
     uint64_t notify_reg;
     uint32_t log2_size; 
+    uint32_t used_tail;
+    uint32_t desc_first_free;
+    uint32_t desc_free_count;
 
     _Alignas(4096) struct virtq_desc desc[VIRTQ_SIZE];
     _Alignas(4096) struct virtq_avail avail;

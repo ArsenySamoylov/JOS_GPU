@@ -12,6 +12,8 @@ struct virtq cursorq;  // queue for sending cursor updates
 void
 map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
 
+static void setup_queue(struct virtq *queue);
+
 volatile uint8_t *isr_status;
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -111,12 +113,16 @@ parse_common_cfg(struct pci_func *pcif, volatile struct virtio_pci_common_cfg_t 
     cfg_header->queue_enable = 1;
     cursorq.log2_size = 6;
 
+    setup_queue(&cursorq);
+
     cfg_header->queue_select = CONTROL_VIRTQ;
     cfg_header->queue_desc  = (uint64_t)PADDR(&controlq.desc);
     cfg_header->queue_avail = (uint64_t)PADDR(&controlq.avail);
     cfg_header->queue_used  = (uint64_t)PADDR(&controlq.used);
     cfg_header->queue_enable = 1;
     controlq.log2_size = 6;
+
+    setup_queue(&controlq);
 
     cprintf("controlq.desc %lx\n", (uint64_t)&controlq.desc);
 
@@ -250,6 +256,43 @@ queue_avail(struct virtq *queue, uint32_t count) {
     atomic_st_rel(&queue->avail.idx, avail_head);
 }
 
+static void recycle_used(struct virtq *queue) {
+    size_t tail = queue->used_tail;
+    size_t const mask = ~-(1 << queue->log2_size);
+    size_t const done_idx = atomic_ld_acq(&queue->used.idx);
+
+    do {
+        struct virtq_used_elem *used = &queue->used.ring[tail & mask];
+        uint16_t id = used->id;
+
+        unsigned freed_count = 1;
+
+        uint16_t end = id;
+        while (queue->desc[end].flags & VIRTQ_DESC_F_NEXT) {
+            end = queue->desc[end].next;
+            ++freed_count;
+        }
+
+        queue->desc[end].next = queue->desc_first_free;
+        queue->desc_first_free = id;
+        queue->desc_free_count += freed_count;
+    } while ((++tail & 0xFFFF) != done_idx);
+
+    queue->used_tail = tail;
+
+    // Notify device how far used ring has been processed
+    cprintf("tail = %lu\n", tail);
+    atomic_st_rel(&queue->used.used_event, tail);
+}
+
+static void setup_queue(struct virtq *queue) {
+    queue->desc_free_count = 1 << queue->log2_size;
+    for (int i = queue->desc_free_count; i > 0; --i) {
+        queue->desc[i - 1].next = queue->desc_first_free;
+        queue->desc_first_free = i - 1;
+    }
+}
+
 static void
 send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_t send_size, void *to_recieve, uint64_t recieve_size) {
     // TODO rewrite
@@ -290,6 +333,8 @@ get_display_info() {
             // handle it, please...
             // LAB 7: Your code here
             cprintf("ISR = %d crossed our way\n", isr);
+
+            recycle_used(&controlq);
         }
     }
     cprintf("Display size %dx%d\n", res.pmodes[0].r.width, res.pmodes[0].r.height);
