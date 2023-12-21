@@ -49,7 +49,8 @@ struct virtq_avail {
     uint16_t flags;
     uint16_t idx;
     uint16_t ring[VIRTQ_SIZE];
-    /* Only if VIRTIO_F_EVENT_IDX: */ uint16_t used_event;
+    /* Only if VIRTIO_F_EVENT_IDX: */ /*... and we have it*/
+    uint16_t used_event;
 };
 
 /* uint32_t is used here for ids for padding reasons. */
@@ -64,7 +65,8 @@ struct virtq_used {
     uint16_t flags;
     uint16_t idx;
     struct virtq_used_elem ring[VIRTQ_SIZE];
-    /* Only if VIRTIO_F_EVENT_IDX: uint16_t avail_event; */
+    /* Only if VIRTIO_F_EVENT_IDX: */
+    uint16_t used_event;
 };
 
 struct virtq {

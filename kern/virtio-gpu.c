@@ -12,6 +12,8 @@ struct virtq cursorq;  // queue for sending cursor updates
 void
 map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
 
+volatile uint8_t *isr_status;
+
 // ---------------------------------------------------------------------------------------------------------------------
 // defines
 
@@ -195,7 +197,10 @@ init_gpu(struct pci_func *pcif) {
             cprintf("notify off mul 0x%x\n", notify_off_multiplier);
             cprintf("notify cap size %ld\n", notify_cap_size);
             break;
-        case VIRTIO_PCI_CAP_ISR_CFG: break;
+        case VIRTIO_PCI_CAP_ISR_CFG: 
+            addr = cap_header.offset + get_bar(base_addrs, cap_header.bar);
+            isr_status = (uint8_t *)addr;
+            break;
         case VIRTIO_PCI_CAP_DEVICE_CFG: break;
         case VIRTIO_PCI_CAP_PCI_CFG: break;
         default: break;
@@ -277,6 +282,15 @@ get_display_info() {
     // send_and_recieve(&cursorq, 1, &display_info, sizeof(display_info), &res, sizeof(res));
 
     cprintf("Waiting for display, phys addr for res is %p....\n", (void *)PADDR(&res));
-    while (res.hdr.type != VIRTIO_GPU_RESP_OK_DISPLAY_INFO) ;
+    while (res.hdr.type != VIRTIO_GPU_RESP_OK_DISPLAY_INFO) {
+        uint8_t isr;
+        // something happened in queue 1...
+        // WARNING: ISR after read is 0
+        if ((isr = *isr_status)) {
+            // handle it, please...
+            // LAB 7: Your code here
+            cprintf("ISR = %d crossed our way\n", isr);
+        }
+    }
     cprintf("Display size %dx%d\n", res.pmodes[0].r.width, res.pmodes[0].r.height);
 }
