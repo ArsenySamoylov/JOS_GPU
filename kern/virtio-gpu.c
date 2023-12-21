@@ -168,11 +168,10 @@ init_gpu(struct pci_func *pcif) {
             bar_addr = get_bar(base_addrs, cap_header.bar);
             addr = cap_header.offset + bar_addr;
             common_cfg_ptr = (volatile struct virtio_pci_common_cfg_t *)addr;
-            notify_reg = bar_addr + notify_cap_offset + common_cfg_ptr->queue_notify_off * notify_off_multiplier;
-            controlq.notify_reg = notify_reg;
+            notify_reg = notify_cap_offset + common_cfg_ptr->queue_notify_off * notify_off_multiplier;
+            controlq.notify_reg += notify_reg;
 
             cprintf("queue_notify_off 0x%x\n", common_cfg_ptr->queue_notify_off);
-            cprintf("notify reg 0x%lx\n", notify_reg);
 
             if (notify_cap_size < common_cfg_ptr->queue_notify_off * notify_off_multiplier + 2) {
                 cprintf("Wrong size\n");
@@ -185,6 +184,10 @@ init_gpu(struct pci_func *pcif) {
             }
             notify_cap_size = cap_header.length;
             notify_cap_offset = cap_header.offset;
+
+            cprintf("upgrading notify_reg from %lx ", controlq.notify_reg);
+            controlq.notify_reg += get_bar(base_addrs, cap_header.bar);
+            cprintf("to %lx at ptr %p\n", controlq.notify_reg, &controlq.notify_reg);
 
             pci_memcpy_from(pcif, cap_offset_old + sizeof(cap_header),
                             (uint8_t *)&notify_off_multiplier, sizeof(notify_off_multiplier));
@@ -207,7 +210,9 @@ init_gpu(struct pci_func *pcif) {
 
 static void
 notify_queue(struct virtq *queue, uint16_t queue_idx) {
-    atomic_st_rel(&queue->notify_reg, queue_idx);
+    cprintf("(B) notify reg 0x%lx at %p\n", queue->notify_reg, &queue->notify_reg);
+    *((uint64_t *)queue->notify_reg) = queue_idx;
+    cprintf("(A) notify reg 0x%lx at %p\n", queue->notify_reg, &queue->notify_reg);
 }
 
 static void
@@ -260,12 +265,13 @@ send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_
     notify_queue(queue, queue_idx);
 }
 
+struct virtio_gpu_ctrl_hdr display_info;
+struct virtio_gpu_resp_display_info res;
+
 void
 get_display_info() {
-    struct virtio_gpu_ctrl_hdr display_info;
     memset(&display_info, 0, sizeof(display_info));
     display_info.type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
-    struct virtio_gpu_resp_display_info res;
     memset(&res, 0, sizeof(res));
 
     send_and_recieve(&controlq, 0, &display_info, sizeof(display_info), &res, sizeof(res));
