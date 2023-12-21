@@ -260,7 +260,6 @@ send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_
     queue->desc[1].flags = VIRTQ_DESC_F_WRITE;
     queue->desc[1].next = -1;
 
-    cprintf("avail idx addr %p\n", (void *)&queue->avail.idx);
     queue_avail(queue, 2);
     notify_queue(queue, queue_idx);
 }
@@ -277,7 +276,7 @@ get_display_info() {
     send_and_recieve(&controlq, 0, &display_info, sizeof(display_info), &res, sizeof(res));
     // send_and_recieve(&cursorq, 1, &display_info, sizeof(display_info), &res, sizeof(res));
 
-    while (atomic_ld_acq(&res.pmodes[0].r.width) == 0)
-        ;
+    cprintf("Waiting for display, phys addr for res is %p....\n", (void *)PADDR(&res));
+    while (res.hdr.type != VIRTIO_GPU_RESP_OK_DISPLAY_INFO) ;
     cprintf("Display size %dx%d\n", res.pmodes[0].r.width, res.pmodes[0].r.height);
 }
