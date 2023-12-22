@@ -26,6 +26,8 @@ struct virtio_gpu_config* gpu_conf;
 #define atomic_st_rel(value, rhs) \
     __atomic_store_n((value), (rhs), __ATOMIC_RELEASE)
 
+#define atomic_fence() __atomic_thread_fence(__ATOMIC_SEQ_CST)
+
 #define GPU_MMIO_ADDR_START 0x000000c000001000
 #define GPU_MMIO_SIZE       0x4000
 
@@ -252,11 +254,15 @@ queue_avail(struct virtq *queue, uint32_t count) {
     cprintf("avail head %d\n", avail_head);
     atomic_st_rel(&queue->avail.used_event, avail_head - 1);
 
+    atomic_fence();
+
     // Update idx (tell virtio where we would put the next new item)
     // enforce ordering until after prior store is globally visible
     // queue->avail.idx = 100;
     // queue->used.idx = 100;
     atomic_st_rel(&queue->avail.idx, avail_head);
+
+    atomic_fence();
 }
 
 static void recycle_used(struct virtq *queue) {
@@ -283,9 +289,11 @@ static void recycle_used(struct virtq *queue) {
 
     queue->used_tail = tail;
 
+    // [NOTE]: read 2.7.8 please, driver should not write to used ring at all
+    // Да и значение у этого поля совсем другое — тут устройство говорит, до какого буфера его можно не тыкать
+    // по аналогии с avail.used_events
     // Notify device how far used ring has been processed
-    cprintf("tail = %lu\n", tail);
-    atomic_st_rel(&queue->used.used_event, tail);
+    // atomic_st_rel(&queue->used.avail_event, tail);
 }
 
 static void setup_queue(struct virtq *queue) {
@@ -310,6 +318,10 @@ send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_
     queue->desc[1].len = recieve_size;
     queue->desc[1].flags = VIRTQ_DESC_F_WRITE;
     queue->desc[1].next = -1;
+
+    // queue->desc[1].flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
+    // queue->desc[1].next = 2;
+    atomic_fence();
 
     queue_avail(queue, 2);
     notify_queue(queue, queue_idx);
@@ -345,7 +357,7 @@ get_display_info() {
         }
 
         if (!i) {
-            cprintf("%d %d %d\n", gpu_conf->events_read, gpu_conf->num_capsets, gpu_conf->num_scanouts);
+            // cprintf("%d %d %d\n", gpu_conf->events_read, gpu_conf->num_capsets, gpu_conf->num_scanouts);
             i = 5000000;
             gpu_conf->events_clear = 1;
         }

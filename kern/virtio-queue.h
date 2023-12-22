@@ -66,7 +66,7 @@ struct virtq_used {
     uint16_t idx;
     struct virtq_used_elem ring[VIRTQ_SIZE];
     /* Only if VIRTIO_F_EVENT_IDX: */
-    uint16_t used_event;
+    uint16_t avail_event;
 };
 
 struct virtq {
