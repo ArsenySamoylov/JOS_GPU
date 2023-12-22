@@ -6,16 +6,15 @@
 #include <kern/pci.bits.h>
 #include <inc/string.h>
 
-struct virtq controlq; // queue for sending control commands
-struct virtq cursorq;  // queue for sending cursor updates
+
+struct virtio_gpu_device_t gpu;
+uint32_t backbuffer[640 * 480];
 
 void
 map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
 
 static void setup_queue(struct virtq *queue);
-
-volatile uint8_t *isr_status;
-struct virtio_gpu_config* gpu_conf;
+static int draw();
 
 // ---------------------------------------------------------------------------------------------------------------------
 // defines
@@ -110,22 +109,23 @@ parse_common_cfg(struct pci_func *pcif, volatile struct virtio_pci_common_cfg_t 
     // Config two queues
 
     cfg_header->queue_select = CURSOR_VIRTQ;
-    cfg_header->queue_desc  = (uint64_t)PADDR(&cursorq.desc);
-    cfg_header->queue_avail = (uint64_t)PADDR(&cursorq.desc);
-    cfg_header->queue_used  = (uint64_t)PADDR(&cursorq.used);
+    cfg_header->queue_desc = (uint64_t)PADDR(&gpu.cursorq.desc);
+    cfg_header->queue_avail = (uint64_t)PADDR(&gpu.cursorq.desc);
+    cfg_header->queue_used = (uint64_t)PADDR(&gpu.cursorq.used);
     cfg_header->queue_enable = 1;
-    cursorq.log2_size = 6;
+    gpu.cursorq.log2_size = cfg_header->queue_size;
+    gpu.cursorq.queue_idx = 1;
 
-    setup_queue(&cursorq);
+    setup_queue(&gpu.cursorq);
 
     cfg_header->queue_select = CONTROL_VIRTQ;
-    cfg_header->queue_desc  = (uint64_t)PADDR(&controlq.desc);
-    cfg_header->queue_avail = (uint64_t)PADDR(&controlq.avail);
-    cfg_header->queue_used  = (uint64_t)PADDR(&controlq.used);
+    cfg_header->queue_desc = (uint64_t)PADDR(&gpu.controlq.desc);
+    cfg_header->queue_avail = (uint64_t)PADDR(&gpu.controlq.avail);
+    cfg_header->queue_used = (uint64_t)PADDR(&gpu.controlq.used);
     cfg_header->queue_enable = 1;
-    controlq.log2_size = 6;
-
-    setup_queue(&controlq);
+    gpu.controlq.log2_size = cfg_header->queue_size;
+    gpu.controlq.queue_idx = 0;
+    setup_queue(&gpu.controlq);
 
     // Set DRIVER_OK flag
     cfg_header->device_status |= VIRTIO_STATUS_DRIVER_OK;
@@ -178,7 +178,7 @@ init_gpu(struct pci_func *pcif) {
             addr = cap_header.offset + bar_addr;
             common_cfg_ptr = (volatile struct virtio_pci_common_cfg_t *)addr;
             notify_reg = notify_cap_offset + common_cfg_ptr->queue_notify_off * notify_off_multiplier;
-            controlq.notify_reg += notify_reg;
+            gpu.controlq.notify_reg += notify_reg;
 
             if (notify_cap_size < common_cfg_ptr->queue_notify_off * notify_off_multiplier + 2) {
                 cprintf("Wrong size\n");
@@ -192,17 +192,17 @@ init_gpu(struct pci_func *pcif) {
             notify_cap_size = cap_header.length;
             notify_cap_offset = cap_header.offset;
 
-            controlq.notify_reg += get_bar(base_addrs, cap_header.bar);
+            gpu.controlq.notify_reg += get_bar(base_addrs, cap_header.bar);
 
             pci_memcpy_from(pcif, cap_offset_old + sizeof(cap_header),
                             (uint8_t *)&notify_off_multiplier, sizeof(notify_off_multiplier));
             break;
-        case VIRTIO_PCI_CAP_ISR_CFG: 
+        case VIRTIO_PCI_CAP_ISR_CFG:
             addr = cap_header.offset + get_bar(base_addrs, cap_header.bar);
-            isr_status = (uint8_t *)addr;
+            gpu.isr_status = (uint8_t *)addr;
             break;
         case VIRTIO_PCI_CAP_DEVICE_CFG:
-            gpu_conf = (struct virtio_gpu_config*) (cap_header.offset + get_bar(base_addrs, cap_header.bar));
+            gpu.conf = (struct virtio_gpu_config *)(cap_header.offset + get_bar(base_addrs, cap_header.bar));
             break;
         case VIRTIO_PCI_CAP_PCI_CFG: break;
         default: break;
@@ -212,12 +212,70 @@ init_gpu(struct pci_func *pcif) {
     }
 
     get_display_info();
+    draw();
+}
+
+
+static void
+recycle_used(struct virtq *queue) {
+    size_t tail = queue->used_tail;
+    size_t const mask = ~-(1 << queue->log2_size);
+    size_t const done_idx = atomic_ld_acq(&queue->used.idx);
+
+    do {
+        struct virtq_used_elem *used = &queue->used.ring[tail & mask];
+        uint16_t id = used->id;
+
+        unsigned freed_count = 1;
+
+        uint16_t end = id;
+        while (queue->desc[end].flags & VIRTQ_DESC_F_NEXT) {
+            end = queue->desc[end].next;
+            ++freed_count;
+        }
+
+        queue->desc[end].next = queue->desc_first_free;
+        queue->desc_first_free = id;
+        queue->desc_free_count += freed_count;
+    } while ((++tail & 0xFFFF) != done_idx);
+
+    queue->used_tail = tail;
+
+    // [NOTE]: read 2.7.8 please, driver should not write to used ring at all
+    // Да и значение у этого поля совсем другое — тут устройство говорит, до какого буфера его можно не тыкать
+    // по аналогии с avail.used_events
+    // Notify device how far used ring has been processed
+    // atomic_st_rel(&queue->used.avail_event, tail);
+}
+
+
+static void
+config_irq() {
+    int events = gpu.conf->events_read;
+
+    // clear events
+    if (events & VIRTIO_PCI_IRQ_CONFIG) {
+        gpu.conf->events_clear = events;
+    }
 }
 
 static void
-notify_queue(struct virtq *queue, uint16_t queue_idx) {
-    *((uint64_t *)queue->notify_reg) = queue_idx;
+notify_queue(struct virtq *queue) {
+    *((uint64_t *)queue->notify_reg) = queue->queue_idx;
 }
+
+static void
+irq_handler() {
+    uint8_t isr = *(gpu.isr_status);
+    if (isr & VIRTIO_PCI_ISR_CONFIG) {
+        config_irq();
+    } else if (isr & VIRTIO_PCI_ISR_NOTIFY) {
+        cprintf("Recycle descriptors\n");
+        recycle_used(&gpu.controlq);
+        notify_queue(&gpu.controlq);
+    }
+}
+
 
 static void
 queue_avail(struct virtq *queue, uint32_t count) {
@@ -251,38 +309,8 @@ queue_avail(struct virtq *queue, uint32_t count) {
     atomic_fence();
 }
 
-static void recycle_used(struct virtq *queue) {
-    size_t tail = queue->used_tail;
-    size_t const mask = ~-(1 << queue->log2_size);
-    size_t const done_idx = atomic_ld_acq(&queue->used.idx);
-
-    do {
-        struct virtq_used_elem *used = &queue->used.ring[tail & mask];
-        uint16_t id = used->id;
-
-        unsigned freed_count = 1;
-
-        uint16_t end = id;
-        while (queue->desc[end].flags & VIRTQ_DESC_F_NEXT) {
-            end = queue->desc[end].next;
-            ++freed_count;
-        }
-
-        queue->desc[end].next = queue->desc_first_free;
-        queue->desc_first_free = id;
-        queue->desc_free_count += freed_count;
-    } while ((++tail & 0xFFFF) != done_idx);
-
-    queue->used_tail = tail;
-
-    // [NOTE]: read 2.7.8 please, driver should not write to used ring at all
-    // Да и значение у этого поля совсем другое — тут устройство говорит, до какого буфера его можно не тыкать
-    // по аналогии с avail.used_events
-    // Notify device how far used ring has been processed
-    // atomic_st_rel(&queue->used.avail_event, tail);
-}
-
-static void setup_queue(struct virtq *queue) {
+static void
+setup_queue(struct virtq *queue) {
     queue->desc_free_count = 1 << queue->log2_size;
     for (int i = queue->desc_free_count; i > 0; --i) {
         queue->desc[i - 1].next = queue->desc_first_free;
@@ -290,9 +318,29 @@ static void setup_queue(struct virtq *queue) {
     }
 }
 
+static struct virtq_desc *alloc_desc(struct virtq *queue, int writable) {
+
+    if (queue->desc_free_count == 0)
+        return NULL;
+
+    --queue->desc_free_count;
+    
+    struct virtq_desc *desc = &queue->desc[queue->desc_first_free];
+    queue->desc_first_free = desc->next;
+
+    desc->addr = 0;
+    desc->len = 0;
+    desc->flags = 0;
+    desc->next = -1;
+
+    if (writable)
+        desc->flags |= VIRTQ_DESC_F_WRITE;
+
+    return desc;
+}
+
 static void
-send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_t send_size, void *to_recieve, uint64_t recieve_size) {
-    // TODO rewrite
+send_and_recieve(struct virtq *queue, void *to_send, uint64_t send_size, void *to_recieve, uint64_t recieve_size) {
     queue->desc[0].addr = (uint64_t)PADDR(to_send);
     queue->desc[0].len = send_size;
     queue->desc[0].flags = VIRTQ_DESC_F_NEXT;
@@ -305,10 +353,15 @@ send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_
     atomic_fence();
 
     queue_avail(queue, 2);
-    notify_queue(queue, queue_idx);
+    notify_queue(queue);
+
+    while (!((struct virtio_gpu_ctrl_hdr *)to_recieve)->type) {
+        asm volatile("pause");
+    }
+    irq_handler();
 }
 
-void
+int
 get_display_info() {
     struct virtio_gpu_ctrl_hdr display_info;
     struct virtio_gpu_resp_display_info res;
@@ -317,16 +370,183 @@ get_display_info() {
     display_info.type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
     memset(&res, 0, sizeof(res));
 
-    send_and_recieve(&controlq, 0, &display_info, sizeof(display_info), &res, sizeof(res));
+    send_and_recieve(&gpu.controlq, &display_info, sizeof(display_info), &res, sizeof(res));
 
-    while (res.hdr.type != VIRTIO_GPU_RESP_OK_DISPLAY_INFO) {
-        uint8_t isr;
-        // WARNING: ISR after read is 0
-        if ((isr = *isr_status)) {
-            recycle_used(&controlq);
-            notify_queue(&controlq, 0);
-        }
+    if (res.hdr.type == VIRTIO_GPU_RESP_OK_DISPLAY_INFO) {
+        gpu.screen_h = res.pmodes[0].r.height;
+        gpu.screen_w = res.pmodes[0].r.width;
+        cprintf("Display size %dx%d\n", gpu.screen_w, gpu.screen_h);
     }
 
-    cprintf("Display size %dx%d\n", res.pmodes[0].r.width, res.pmodes[0].r.height);
+    return 0;
+}
+
+static int
+resource_create_2d() {
+    // Create a host resource using VIRTIO_GPU_CMD_RESOURCE_CREATE_2D.
+
+    struct virtio_gpu_resource_create_2d resource_2d;
+    struct virtio_gpu_ctrl_hdr res;
+    memset(&resource_2d, 0, sizeof(resource_2d));
+    memset(&res, 0, sizeof(res));
+    resource_2d.hdr.type = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D;
+    resource_2d.height = gpu.screen_h;
+    resource_2d.width = gpu.screen_w;
+    resource_2d.format = VIRTIO_GPU_FORMAT_A8R8G8B8_UNORM;
+    resource_2d.resource_id = DEFAULT_RESOURCE_ID;
+
+    // send and recieve information
+
+    send_and_recieve(&gpu.controlq, &resource_2d, sizeof(resource_2d), &res, sizeof(res));
+
+    if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
+        cprintf("Success 2d resource created\n");
+    } else {
+        return 1;
+    }
+    return 0;
+}
+
+
+static int
+attach_backing() {
+    // Allocate a framebuffer from guest ram, and attach it as backing storage to the resource just created,
+    // using VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING. Scatter lists are supported,
+    // so the framebuffer doesn’t need to be contignous in guest physical memory.
+
+    struct virtio_gpu_ctrl_hdr res;
+    memset(&res, 0, sizeof(res));
+
+    // Calculate size of attach backing command
+    size_t backing_cmd_sz = sizeof(struct virtio_gpu_resource_attach_backing) +
+                            sizeof(struct virtio_gpu_mem_entry);
+
+    // Allocate a buffer to hold virtio_gpu_resource_attach_backing_t command
+    struct virtio_gpu_resource_attach_backing backing_cmd[2];
+    memset(backing_cmd, 0, 2 * sizeof(struct virtio_gpu_resource_attach_backing));
+    backing_cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING;
+
+    backing_cmd->resource_id = DEFAULT_RESOURCE_ID;
+    backing_cmd->nr_entries = 1;
+
+    struct virtio_gpu_mem_entry *mem_entries =
+            (struct virtio_gpu_mem_entry *)(backing_cmd + 1);
+
+    mem_entries->addr = (uint64_t)PADDR(&gpu.backbuf); /*backbuf phys addr*/
+    mem_entries->length = gpu.backbuf_sz;
+
+    send_and_recieve(&gpu.controlq, backing_cmd, backing_cmd_sz,
+                     &res, sizeof(res));
+
+    if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
+        cprintf("Success attach backing\n");
+    } else {
+        return 1;
+    }
+    return 0;
+}
+
+static int
+set_scanout() {
+    // Use VIRTIO_GPU_CMD_SET_SCANOUT to link the framebuffer to a display scanout.
+
+    struct virtio_gpu_set_scanout scanout;
+    struct virtio_gpu_ctrl_hdr res;
+    memset(&scanout, 0, sizeof(scanout));
+    memset(&res, 0, sizeof(res));
+
+    scanout.hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT;
+    scanout.r.x = 0;
+    scanout.r.y = 0;
+    scanout.r.width = gpu.screen_w;
+    scanout.r.height = gpu.screen_h;
+    scanout.resource_id = DEFAULT_RESOURCE_ID;
+    scanout.scanout_id = 0;
+
+    send_and_recieve(&gpu.controlq, &scanout, sizeof(scanout),
+                     &res, sizeof(res));
+
+    if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
+        cprintf("Success setting scanout\n");
+        return 0;
+    } else {
+        cprintf("Res type %d\n", res.type);
+    }
+    return 1;
+}
+
+static int
+transfet_to_host_2D() {
+    // Use VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D to update the host resource from guest memory.
+    struct virtio_gpu_transfer_to_host_2d transfer;
+    struct virtio_gpu_ctrl_hdr res;
+    memset(&transfer, 0, sizeof(transfer));
+    memset(&res, 0, sizeof(res));
+
+    transfer.hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D;
+    transfer.r.x = 0;
+    transfer.r.y = 0;
+    transfer.r.width = gpu.screen_w;
+    transfer.r.height = gpu.screen_h;
+    transfer.resource_id = DEFAULT_RESOURCE_ID;
+
+    send_and_recieve(&gpu.controlq, &transfer, sizeof(transfer),
+                     &res, sizeof(res));
+
+    if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
+        cprintf("Transfer to host 2D completed\n");
+        return 0;
+    } else {
+        cprintf("Res type %d\n", res.type);
+    }
+    return 1;
+}
+
+
+static int
+flush() {
+    // Use VIRTIO_GPU_CMD_RESOURCE_FLUSH to flush the updated resource to the display.
+    struct virtio_gpu_resource_flush flush;
+    struct virtio_gpu_ctrl_hdr res;
+    memset(&flush, 0, sizeof(flush));
+    memset(&res, 0, sizeof(res));
+
+    flush.hdr.type = VIRTIO_GPU_CMD_RESOURCE_FLUSH;
+    flush.r.x = 0;
+    flush.r.y = 0;
+    flush.r.width = gpu.screen_w;
+    flush.r.height = gpu.screen_h;
+    flush.resource_id = DEFAULT_RESOURCE_ID;
+
+    send_and_recieve(&gpu.controlq, &flush, sizeof(flush),
+                     &res, sizeof(res));
+
+    if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
+        cprintf("Flush completed\n");
+        return 0;
+    } else {
+        cprintf("Res type %d\n", res.type);
+    }
+    return 1;
+}
+
+int
+draw() {
+    gpu.backbuf = backbuffer;
+    gpu.backbuf_sz = sizeof(backbuffer);
+
+    // for (int i = 0; i < 480; ++i) {
+    //     for (int j = 0; j < 640; ++j) {
+    //         cprintf("%0x|", backbuffer[i*480 + j]);
+    //     }
+    //     cprintf("\n");
+    // }
+
+    resource_create_2d();
+    attach_backing();
+    set_scanout();
+    // Render to framebuffer memory.
+    transfet_to_host_2D();
+    flush();
+    return 0;
 }

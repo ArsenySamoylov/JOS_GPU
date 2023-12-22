@@ -1,9 +1,10 @@
 #pragma once
 
 #include <kern/pci.h>
+#include "virtio-queue.h"
 
 void init_gpu(struct pci_func *pcif);
-void get_display_info();
+int get_display_info();
 
 struct virtio_pci_cap_hdr_t {
     uint8_t cap_vendor;
@@ -124,4 +125,18 @@ struct virtio_pci_common_cfg_t {
 
     // read-write
     uint64_t queue_used;
+};
+
+struct virtio_gpu_device_t {
+    struct virtq controlq;
+    struct virtq cursorq;
+
+    volatile uint8_t *isr_status;
+    volatile struct virtio_gpu_config *conf;
+
+    uint32_t *backbuf;
+    size_t backbuf_sz;
+
+    uint32_t screen_w;
+    uint32_t screen_h;
 };
