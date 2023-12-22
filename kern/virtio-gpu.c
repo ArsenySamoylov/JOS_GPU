@@ -127,8 +127,6 @@ parse_common_cfg(struct pci_func *pcif, volatile struct virtio_pci_common_cfg_t 
 
     setup_queue(&controlq);
 
-    cprintf("controlq.desc %lx\n", (uint64_t)&controlq.desc);
-
     // Set DRIVER_OK flag
     cfg_header->device_status |= VIRTIO_STATUS_DRIVER_OK;
 }
@@ -182,8 +180,6 @@ init_gpu(struct pci_func *pcif) {
             notify_reg = notify_cap_offset + common_cfg_ptr->queue_notify_off * notify_off_multiplier;
             controlq.notify_reg += notify_reg;
 
-            cprintf("queue_notify_off 0x%x\n", common_cfg_ptr->queue_notify_off);
-
             if (notify_cap_size < common_cfg_ptr->queue_notify_off * notify_off_multiplier + 2) {
                 cprintf("Wrong size\n");
             }
@@ -196,15 +192,10 @@ init_gpu(struct pci_func *pcif) {
             notify_cap_size = cap_header.length;
             notify_cap_offset = cap_header.offset;
 
-            cprintf("upgrading notify_reg from %lx ", controlq.notify_reg);
             controlq.notify_reg += get_bar(base_addrs, cap_header.bar);
-            cprintf("to %lx at ptr %p\n", controlq.notify_reg, &controlq.notify_reg);
 
             pci_memcpy_from(pcif, cap_offset_old + sizeof(cap_header),
                             (uint8_t *)&notify_off_multiplier, sizeof(notify_off_multiplier));
-
-            cprintf("notify off mul 0x%x\n", notify_off_multiplier);
-            cprintf("notify cap size %ld\n", notify_cap_size);
             break;
         case VIRTIO_PCI_CAP_ISR_CFG: 
             addr = cap_header.offset + get_bar(base_addrs, cap_header.bar);
@@ -223,12 +214,9 @@ init_gpu(struct pci_func *pcif) {
     get_display_info();
 }
 
-
 static void
 notify_queue(struct virtq *queue, uint16_t queue_idx) {
-    cprintf("(B) notify reg 0x%lx at %p\n", queue->notify_reg, &queue->notify_reg);
     *((uint64_t *)queue->notify_reg) = queue_idx;
-    cprintf("(A) notify reg 0x%lx at %p\n", queue->notify_reg, &queue->notify_reg);
 }
 
 static void
@@ -258,8 +246,6 @@ queue_avail(struct virtq *queue, uint32_t count) {
 
     // Update idx (tell virtio where we would put the next new item)
     // enforce ordering until after prior store is globally visible
-    // queue->avail.idx = 100;
-    // queue->used.idx = 100;
     atomic_st_rel(&queue->avail.idx, avail_head);
 
     atomic_fence();
@@ -311,57 +297,36 @@ send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_
     queue->desc[0].len = send_size;
     queue->desc[0].flags = VIRTQ_DESC_F_NEXT;
     queue->desc[0].next = 1;
-    cprintf("&queue->desc[0].addr: %p\n", (void *)&queue->desc[0].addr);
-    cprintf("queue->desc[0].addr %lx to send: %lx\n",queue->desc[0].addr, (uint64_t)to_send);
 
     queue->desc[1].addr = (uint64_t)PADDR(to_recieve);
     queue->desc[1].len = recieve_size;
     queue->desc[1].flags = VIRTQ_DESC_F_WRITE;
     queue->desc[1].next = -1;
-
-    // queue->desc[1].flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
-    // queue->desc[1].next = 2;
     atomic_fence();
 
     queue_avail(queue, 2);
     notify_queue(queue, queue_idx);
 }
 
-struct virtio_gpu_ctrl_hdr display_info;
-struct virtio_gpu_resp_display_info res;
-
 void
 get_display_info() {
+    struct virtio_gpu_ctrl_hdr display_info;
+    struct virtio_gpu_resp_display_info res;
+
     memset(&display_info, 0, sizeof(display_info));
     display_info.type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
     memset(&res, 0, sizeof(res));
 
     send_and_recieve(&controlq, 0, &display_info, sizeof(display_info), &res, sizeof(res));
-    // send_and_recieve(&cursorq, 1, &display_info, sizeof(display_info), &res, sizeof(res));
-
-    cprintf("Waiting for display, phys addr for res is %p....\n", (void *)PADDR(&res));
-
-    uint64_t i = 5000000; // ~ 1 sec
 
     while (res.hdr.type != VIRTIO_GPU_RESP_OK_DISPLAY_INFO) {
         uint8_t isr;
-        // something happened in queue 1...
         // WARNING: ISR after read is 0
         if ((isr = *isr_status)) {
-            // handle it, please...
-            // LAB 7: Your code here
-            cprintf("ISR = %d crossed our way\n", isr);
-
             recycle_used(&controlq);
             notify_queue(&controlq, 0);
         }
-
-        if (!i) {
-            // cprintf("%d %d %d\n", gpu_conf->events_read, gpu_conf->num_capsets, gpu_conf->num_scanouts);
-            i = 5000000;
-            gpu_conf->events_clear = 1;
-        }
-        --i;
     }
+
     cprintf("Display size %dx%d\n", res.pmodes[0].r.width, res.pmodes[0].r.height);
 }
