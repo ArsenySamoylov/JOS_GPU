@@ -13,7 +13,7 @@ uint32_t backbuffer[640 * 480];
 void
 map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
 
-static void setup_queue(struct virtq *queue);
+static void setup_queue(struct virtq *queue, volatile struct virtio_pci_common_cfg_t *cfg_header);
 static int draw();
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -107,29 +107,33 @@ parse_common_cfg(struct pci_func *pcif, volatile struct virtio_pci_common_cfg_t 
     }
 
     // Config two queues
+    gpu.cursorq.queue_idx = CURSOR_VIRTQ;
+    setup_queue(&gpu.cursorq, cfg_header);
 
-    cfg_header->queue_select = CURSOR_VIRTQ;
-    cfg_header->queue_desc = (uint64_t)PADDR(&gpu.cursorq.desc);
-    cfg_header->queue_avail = (uint64_t)PADDR(&gpu.cursorq.desc);
-    cfg_header->queue_used = (uint64_t)PADDR(&gpu.cursorq.used);
-    cfg_header->queue_enable = 1;
-    gpu.cursorq.log2_size = cfg_header->queue_size;
-    gpu.cursorq.queue_idx = 1;
-
-    setup_queue(&gpu.cursorq);
-
-    cfg_header->queue_select = CONTROL_VIRTQ;
-    cfg_header->queue_desc = (uint64_t)PADDR(&gpu.controlq.desc);
-    cfg_header->queue_avail = (uint64_t)PADDR(&gpu.controlq.avail);
-    cfg_header->queue_used = (uint64_t)PADDR(&gpu.controlq.used);
-    cfg_header->queue_enable = 1;
-    gpu.controlq.log2_size = cfg_header->queue_size;
-    gpu.controlq.queue_idx = 0;
-    setup_queue(&gpu.controlq);
+    gpu.controlq.queue_idx = CONTROL_VIRTQ;
+    setup_queue(&gpu.controlq, cfg_header);
 
     // Set DRIVER_OK flag
     cfg_header->device_status |= VIRTIO_STATUS_DRIVER_OK;
 }
+
+static void
+setup_queue(struct virtq *queue, volatile struct virtio_pci_common_cfg_t *cfg_header) {
+    cfg_header->queue_select = queue->queue_idx;
+    cfg_header->queue_desc = (uint64_t)PADDR(&queue->desc);
+    cfg_header->queue_avail = (uint64_t)PADDR(&queue->avail);
+    cfg_header->queue_used = (uint64_t)PADDR(&queue->used);
+    cfg_header->queue_enable = 1;
+    cfg_header->queue_size = VIRTQ_SIZE;
+    queue->log2_size = 6;
+
+    queue->desc_free_count = 1 << queue->log2_size;
+    for (int i = queue->desc_free_count; i > 0; --i) {
+        queue->desc[i - 1].next = queue->desc_first_free;
+        queue->desc_first_free = i - 1;
+    }
+}
+
 
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -309,18 +313,9 @@ queue_avail(struct virtq *queue, uint32_t count) {
     atomic_fence();
 }
 
-static void
-setup_queue(struct virtq *queue) {
-    queue->desc_free_count = 1 << queue->log2_size;
-    for (int i = queue->desc_free_count; i > 0; --i) {
-        queue->desc[i - 1].next = queue->desc_first_free;
-        queue->desc_first_free = i - 1;
-    }
-}
 
 static struct virtq_desc *
 alloc_desc(struct virtq *queue, int writable) {
-
     if (queue->desc_free_count == 0)
         return NULL;
 
@@ -329,8 +324,6 @@ alloc_desc(struct virtq *queue, int writable) {
     struct virtq_desc *desc = &queue->desc[queue->desc_first_free];
     queue->desc_first_free = desc->next;
 
-    desc->addr = 0;
-    desc->len = 0;
     desc->flags = 0;
     desc->next = -1;
 
@@ -342,15 +335,17 @@ alloc_desc(struct virtq *queue, int writable) {
 
 static void
 send_and_recieve(struct virtq *queue, void *to_send, uint64_t send_size, void *to_recieve, uint64_t recieve_size) {
-    queue->desc[0].addr = (uint64_t)PADDR(to_send);
-    queue->desc[0].len = send_size;
-    queue->desc[0].flags = VIRTQ_DESC_F_NEXT;
-    queue->desc[0].next = 1;
+    struct virtq_desc *desc[2];
+    desc[0] = alloc_desc(queue, 0);
+    desc[0]->addr = (uint64_t)PADDR(to_send);
+    desc[0]->len = send_size;
+    desc[0]->flags = VIRTQ_DESC_F_NEXT;
+    desc[0]->next = 1;
 
-    queue->desc[1].addr = (uint64_t)PADDR(to_recieve);
-    queue->desc[1].len = recieve_size;
-    queue->desc[1].flags = VIRTQ_DESC_F_WRITE;
-    queue->desc[1].next = -1;
+    desc[1] = alloc_desc(queue, 1);
+    desc[1]->addr = (uint64_t)PADDR(to_recieve);
+    desc[1]->len = recieve_size;
+
     atomic_fence();
 
     queue_avail(queue, 2);
@@ -477,7 +472,7 @@ set_scanout() {
 }
 
 static int
-transfet_to_host_2D() {
+transfer_to_host_2D() {
     // Use VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D to update the host resource from guest memory.
     struct virtio_gpu_transfer_to_host_2d transfer;
     struct virtio_gpu_ctrl_hdr res;
@@ -546,12 +541,11 @@ draw() {
         backbuffer[i] = TEST_XRGB_RED;
     }
 
-
     resource_create_2d();
     attach_backing();
     set_scanout();
     // Render to framebuffer memory.
-    transfet_to_host_2D();
+    transfer_to_host_2D();
     flush();
     return 0;
 }
