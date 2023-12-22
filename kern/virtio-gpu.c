@@ -1,15 +1,21 @@
 #include "virtio-gpu.h"
 #include <inc/stdio.h>
 #include <kern/pcireg.h>
+#include <kern/pci.bits.h>
+#include <inc/string.h>
 
-#define VIRTIO_PCI_FEATURE_REGISTER 0x0 
-#define VIRTIO_PCI_STATUS_REGISTER  0x12 
-#define VIRTIO_PCI_ACK_BIT          0x00000001 
-#define VIRTIO_PCI_DRV_BIT          0x00000002
+void
+map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
 
-#define PCI_BAR_MMIO_BA (((1U << 28)-1) << 4)
+#define VIRTIO_STATUS_ACKNOWLEDGE   1
+#define VIRTIO_STATUS_DRIVER        2
+#define VIRTIO_STATUS_DRIVER_OK     4
+#define VIRTIO_STATUS_FEATURES_OK   8
+#define VIRTIO_STATUS_NEED_RESET    64
+#define VIRTIO_STATUS_FAILED        128
 
-#define VIRTIO_STATUS_FEATURES_OK 0x8
+#define VIRTIO_F_VERSION_1          0x0000000100000000ULL
+#define VIRTIO_F_IOMMU_PLATFORM     0x0000000200000000ULL
 
 // Common configuration
 #define VIRTIO_PCI_CAP_COMMON_CFG   1
@@ -143,16 +149,30 @@ struct virtio_pci_common_cfg_t {
 
 uint32_t base_addr[6];
 
-// bool is_bar_mmio(size_t bar)
-// {
-//     return PCI_BAR_RTE_GET(base_addr[bar]) == 0;
-// }
+bool is_bar_mmio(size_t bar)
+{
+    return PCI_BAR_RTE_GET(base_addr[bar]) == 0;
+}
+
+bool is_bar_64bit(size_t bar)
+{
+    return (PCI_BAR_RTE_GET(base_addr[bar]) == 0) &&
+            (PCI_BAR_MMIO_TYPE_GET(base_addr[bar]) == PCI_BAR_MMIO_TYPE_64BIT);
+}
 
 static uint64_t get_bar(size_t bar)
 {
     uint64_t addr;
 
-    addr = base_addr[bar] & -4;
+    if (is_bar_mmio(bar)) {
+        addr = base_addr[bar] & PCI_BAR_MMIO_BA;
+
+        if (is_bar_64bit(bar))
+            addr |= ((uint64_t)(base_addr[bar + 1])) << 32;
+    } else {
+        // Mask off low 2 bits
+        addr = base_addr[bar] & -4;
+    }
 
     return addr;
 }
@@ -163,36 +183,54 @@ static uint8_t get_capabilities_ptr(struct pci_func *pcif) {
 }
 
 static void parse_common_cfg(struct pci_func *pcif, struct virtio_pci_cap_hdr_t* cap_header) {
-    uint32_t addr = cap_header->offset + get_bar(cap_header->bar);
-    cprintf(" offset = %u bar base = %lu common cfg addr = %u", cap_header->offset, get_bar(cap_header->bar), addr);
+    uint64_t addr = cap_header->offset + get_bar(cap_header->bar);
+    cprintf(" offset = 0x%x bar base = 0x%lx common cfg addr = 0x%lx", cap_header->offset, get_bar(cap_header->bar), addr);
 
-
+    volatile struct virtio_pci_common_cfg_t* cfg_header = (struct virtio_pci_common_cfg_t *) addr;
 
     // Reset device
-    pci_conf_write_sized(pcif, addr + VIRTIO_PCI_STATUS_REGISTER, sizeof(uint8_t), 0);
+    cfg_header->device_status = 0;
 
     // Wait until reset completes
-    while (pci_conf_read_sized(pcif, addr + VIRTIO_PCI_STATUS_REGISTER, sizeof(uint8_t)) != 0) {
+    while (atomic_ld_acq(&cfg_header->device_status) != 0) {
         asm volatile("pause");
     }
 
-    uint8_t status;
-    
     // Set ACK bit (we recognised this device)
-    status = pci_conf_read_sized(pcif, addr + VIRTIO_PCI_STATUS_REGISTER, sizeof(uint8_t));
-    pci_conf_write_sized(pcif, addr + VIRTIO_PCI_STATUS_REGISTER, sizeof(uint8_t), status | VIRTIO_PCI_ACK_BIT);
+    cfg_header->device_status |= VIRTIO_STATUS_ACKNOWLEDGE;
 
     // Set DRIVER bit (we have driver for this device)
-    status = pci_conf_read_sized(pcif, addr + VIRTIO_PCI_STATUS_REGISTER, sizeof(uint8_t));
-    pci_conf_write_sized(pcif, addr + VIRTIO_PCI_STATUS_REGISTER, sizeof(uint8_t), status | VIRTIO_PCI_DRV_BIT);
+    cfg_header->device_status |= VIRTIO_STATUS_DRIVER;
+    
+    // Get features
+    uint64_t features = cfg_header->device_feature;
+    features &= VIRTIO_F_VERSION_1 | VIRTIO_F_IOMMU_PLATFORM; // Most basic just for test
+
+    cfg_header->driver_feature        = features;
+    cfg_header->driver_feature_select = features;
+    cfg_header->device_feature_select = features;
+
+    cfg_header->device_status |= VIRTIO_STATUS_FEATURES_OK;
+
+    if (!(cfg_header->device_status & VIRTIO_STATUS_FEATURES_OK)) {
+        cfg_header->device_status |= VIRTIO_STATUS_FAILED;
+        cprintf("FAILED TO SETUP GPU: Feature error");
+        return;
+    }
+
+    cfg_header->driver_feature        = features;
+    cfg_header->driver_feature_select = features;
+    cfg_header->device_feature_select = features;
 
     // Set FEATURES_OK flag
-    status = pci_conf_read_sized(pcif, addr + VIRTIO_PCI_STATUS_REGISTER, sizeof(uint8_t));
-    pci_conf_write_sized(pcif, addr + VIRTIO_PCI_STATUS_REGISTER, sizeof(uint8_t), status | VIRTIO_STATUS_FEATURES_OK);
+    cfg_header->device_status |= VIRTIO_STATUS_FEATURES_OK;
+    cfg_header->device_status |= VIRTIO_STATUS_DRIVER_OK;
 }
 
 void init_gpu(struct pci_func *pcif) {
     cprintf("GPU Init");
+
+    map_addr_early_boot(0x000000c000001000, 0x000000c000001000, 0x4000);
 
     for (int i = 0; i < 6; ++i) {
         base_addr[i] = pci_conf_read(pcif, 0x10 + i*4);
@@ -209,7 +247,6 @@ void init_gpu(struct pci_func *pcif) {
             pci_memcpy_from(pcif, cap_offset, (uint8_t *)&cap_header, sizeof(cap_header));
             cap_offset = cap_header.cap_next;
         }
-
 
         switch (cap_header.type) {
             case VIRTIO_PCI_CAP_COMMON_CFG: parse_common_cfg(pcif, &cap_header); break;
