@@ -21,6 +21,9 @@
 #define VIRTIO_PCI_ISR_NOTIFY 0x1
 #define VIRTIO_PCI_IRQ_CONFIG 0x1
 #define DEFAULT_RESOURCE_ID 0x1
+#define TEST_XRGB_WHITE 0xffffffff
+#define TEST_XRGB_BLUE  0xff2200FF
+#define TEST_XRGB_RED   0x0000ff00
 
 /* The device uses this in used->flags to advise the driver: don't kick me
  * when you add a buffer.  It's unreliable, so it's simply an

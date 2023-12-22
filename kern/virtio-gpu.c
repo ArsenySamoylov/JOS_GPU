@@ -318,13 +318,14 @@ setup_queue(struct virtq *queue) {
     }
 }
 
-static struct virtq_desc *alloc_desc(struct virtq *queue, int writable) {
+static struct virtq_desc *
+alloc_desc(struct virtq *queue, int writable) {
 
     if (queue->desc_free_count == 0)
         return NULL;
 
     --queue->desc_free_count;
-    
+
     struct virtq_desc *desc = &queue->desc[queue->desc_first_free];
     queue->desc_first_free = desc->next;
 
@@ -392,7 +393,7 @@ resource_create_2d() {
     resource_2d.hdr.type = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D;
     resource_2d.height = gpu.screen_h;
     resource_2d.width = gpu.screen_w;
-    resource_2d.format = VIRTIO_GPU_FORMAT_A8R8G8B8_UNORM;
+    resource_2d.format = VIRTIO_GPU_FORMAT_X8R8G8B8_UNORM;
     resource_2d.resource_id = DEFAULT_RESOURCE_ID;
 
     // send and recieve information
@@ -432,7 +433,7 @@ attach_backing() {
     struct virtio_gpu_mem_entry *mem_entries =
             (struct virtio_gpu_mem_entry *)(backing_cmd + 1);
 
-    mem_entries->addr = (uint64_t)PADDR(&gpu.backbuf); /*backbuf phys addr*/
+    mem_entries->addr = (uint64_t)PADDR(gpu.backbuf); /*backbuf phys addr*/
     mem_entries->length = gpu.backbuf_sz;
 
     send_and_recieve(&gpu.controlq, backing_cmd, backing_cmd_sz,
@@ -535,12 +536,16 @@ draw() {
     gpu.backbuf = backbuffer;
     gpu.backbuf_sz = sizeof(backbuffer);
 
-    // for (int i = 0; i < 480; ++i) {
-    //     for (int j = 0; j < 640; ++j) {
-    //         cprintf("%0x|", backbuffer[i*480 + j]);
-    //     }
-    //     cprintf("\n");
-    // }
+    for (int i = 0; i < 640 * 480 / 3; ++i) {
+        backbuffer[i] = TEST_XRGB_WHITE;
+    }
+    for (int i = 640 * 480 / 3; i < 2 * 640 * 480 / 3; ++i) {
+        backbuffer[i] = TEST_XRGB_BLUE;
+    }
+    for (int i = 2 * 640 * 480 / 3; i < 640 * 480; ++i) {
+        backbuffer[i] = TEST_XRGB_RED;
+    }
+
 
     resource_create_2d();
     attach_backing();
