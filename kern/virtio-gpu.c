@@ -309,8 +309,8 @@ send_and_recieve(struct virtq *queue, uint16_t queue_idx, void *to_send, uint64_
     // TODO rewrite
     queue->desc[0].addr = (uint64_t)PADDR(to_send);
     queue->desc[0].len = send_size;
-    queue->desc[0].flags = 0;
-    queue->desc[0].next = -1;
+    queue->desc[0].flags = VIRTQ_DESC_F_NEXT;
+    queue->desc[0].next = 1;
     cprintf("&queue->desc[0].addr: %p\n", (void *)&queue->desc[0].addr);
     cprintf("queue->desc[0].addr %lx to send: %lx\n",queue->desc[0].addr, (uint64_t)to_send);
 
