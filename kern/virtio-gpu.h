@@ -134,9 +134,8 @@ struct virtio_gpu_device_t {
     volatile uint8_t *isr_status;
     volatile struct virtio_gpu_config *conf;
 
-    uint32_t *backbuf;
-    size_t backbuf_sz;
-
     uint32_t screen_w;
     uint32_t screen_h;
+
+    uint32_t resource_id_cnt;
 };

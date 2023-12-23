@@ -5,10 +5,9 @@
 #include <kern/pmap.h>
 #include <kern/pci.bits.h>
 #include <inc/string.h>
-
+#include "graphic.h"
 
 struct virtio_gpu_device_t gpu;
-uint32_t backbuffer[640 * 480];
 
 void
 map_addr_early_boot(uintptr_t va, uintptr_t pa, size_t sz);
@@ -376,15 +375,15 @@ get_display_info() {
 }
 
 static int
-resource_create_2d() {
+resource_create_2d(struct texture_2d *texture) {
     // Create a host resource using VIRTIO_GPU_CMD_RESOURCE_CREATE_2D.
 
     struct virtio_gpu_resource_create_2d resource_2d = {
         .hdr.type    = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D,
-        .height      = gpu.screen_h,
-        .width       = gpu.screen_w,
+        .height      = texture->height,
+        .width       = texture->width,
         .format      = VIRTIO_GPU_FORMAT_X8R8G8B8_UNORM,
-        .resource_id = DEFAULT_RESOURCE_ID
+        .resource_id = texture->resource_id
     };
 
     struct virtio_gpu_ctrl_hdr res = {};
@@ -403,7 +402,7 @@ resource_create_2d() {
 
 
 static int
-attach_backing() {
+attach_backing(struct texture_2d *texture) {
     // Allocate a framebuffer from guest ram, and attach it as backing storage to the resource just created,
     // using VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING. Scatter lists are supported,
     // so the framebuffer doesn’t need to be contignous in guest physical memory.
@@ -418,14 +417,14 @@ attach_backing() {
     struct virtio_gpu_resource_attach_backing backing_cmd[2] = {};
     backing_cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING;
 
-    backing_cmd->resource_id = DEFAULT_RESOURCE_ID;
+    backing_cmd->resource_id = texture->resource_id;
     backing_cmd->nr_entries = 1;
 
     struct virtio_gpu_mem_entry *mem_entries =
             (struct virtio_gpu_mem_entry *)(backing_cmd + 1);
 
-    mem_entries->addr = (uint64_t)PADDR(gpu.backbuf); /*backbuf phys addr*/
-    mem_entries->length = gpu.backbuf_sz;
+    mem_entries->addr = (uint64_t)PADDR(texture->backbuf); /*backbuf phys addr*/
+    mem_entries->length = texture->width * texture->height * sizeof(uint32_t);
 
     send_and_recieve(&gpu.controlq, backing_cmd, backing_cmd_sz,
                      &res, sizeof(res));
@@ -439,16 +438,17 @@ attach_backing() {
 }
 
 static int
-set_scanout() {
+set_scanout(struct texture_2d *texture) {
     // Use VIRTIO_GPU_CMD_SET_SCANOUT to link the framebuffer to a display scanout.
 
     struct virtio_gpu_set_scanout scanout = {
         .hdr.type    = VIRTIO_GPU_CMD_SET_SCANOUT,
+        // we don't support (yet) region drawing, only whole texture 
         .r.x         = 0,
-        .r.y         = 0,
-        .r.width     = gpu.screen_w,
-        .r.height    = gpu.screen_h,
-        .resource_id = DEFAULT_RESOURCE_ID,
+        .r.y         = 0, 
+        .r.width     = texture->width,
+        .r.height    = texture->height,
+        .resource_id = texture->resource_id,
         .scanout_id  = 0
     };
     struct virtio_gpu_ctrl_hdr res = {};
@@ -466,18 +466,17 @@ set_scanout() {
 }
 
 static int
-transfer_to_host_2D() {
+transfer_to_host_2D(struct texture_2d *texture) {
     // Use VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D to update the host resource from guest memory.
     struct virtio_gpu_transfer_to_host_2d transfer = {
         .hdr.type    = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D,
-        .r.x         = 0,
-        .r.y         = 0,
-        .r.width     = gpu.screen_w,
-        .r.height    = gpu.screen_h,
-        .resource_id = DEFAULT_RESOURCE_ID    
+        .r.x         = texture->pos_x,
+        .r.y         = texture->pos_y,
+        .r.width     = texture->width, // we want to transfer whole buf
+        .r.height    = texture->height,
+        .resource_id = texture->resource_id
     };
     struct virtio_gpu_ctrl_hdr res = {};
-
 
     send_and_recieve(&gpu.controlq, &transfer, sizeof(transfer),
                      &res, sizeof(res));
@@ -491,20 +490,19 @@ transfer_to_host_2D() {
     return 1;
 }
 
-
 static int
-flush() {
+flush(struct texture_2d *texture) {
     // Use VIRTIO_GPU_CMD_RESOURCE_FLUSH to flush the updated resource to the display.
     struct virtio_gpu_resource_flush flush = {
         .hdr.type    = VIRTIO_GPU_CMD_RESOURCE_FLUSH,
         .r.x         = 0,
         .r.y         = 0,
-        .r.width     = gpu.screen_w,
-        .r.height    = gpu.screen_h,
-        .resource_id = DEFAULT_RESOURCE_ID
+        .r.width     = texture->width,
+        .r.height    = texture->height,
+        .resource_id = texture->resource_id
     };
-    struct virtio_gpu_ctrl_hdr res = {};
 
+    struct virtio_gpu_ctrl_hdr res = {};
 
     send_and_recieve(&gpu.controlq, &flush, sizeof(flush),
                      &res, sizeof(res));
@@ -518,26 +516,60 @@ flush() {
     return 1;
 }
 
+void texture_init(struct texture_2d *texture, uint32_t buf_w, uint32_t buf_h) {
+    texture->resource_id = ++gpu.resource_id_cnt; // so we start from 1
+    texture->width = buf_w;
+    texture->height = buf_h;
+
+    resource_create_2d(texture);
+    attach_backing(texture);
+    set_scanout(texture);
+}
+
+void texture_display(struct texture_2d *texture) {
+    // update host texture
+    transfer_to_host_2D(texture);
+    // flush to window
+    flush(texture);
+}
+
+void texture_destroy(struct texture_2d *texture) {
+    // TODO: unref
+}
+
+struct texture_2d flag;
+struct texture_2d red_flag;
+
 int
 draw() {
-    gpu.backbuf = backbuffer;
-    gpu.backbuf_sz = sizeof(backbuffer);
+    texture_init(&flag, gpu.screen_w/2, gpu.screen_h/2);
+    texture_init(&red_flag, gpu.screen_w, gpu.screen_h);
 
     for (int i = 0; i < 640 * 480 / 3; ++i) {
-        backbuffer[i] = TEST_XRGB_WHITE;
+        flag.backbuf[i] = TEST_XRGB_WHITE;
+        red_flag.backbuf[i] = TEST_XRGB_RED;
     }
     for (int i = 640 * 480 / 3; i < 2 * 640 * 480 / 3; ++i) {
-        backbuffer[i] = TEST_XRGB_BLUE;
+        flag.backbuf[i] = TEST_XRGB_BLUE;
+        red_flag.backbuf[i] = TEST_XRGB_RED;
     }
     for (int i = 2 * 640 * 480 / 3; i < 640 * 480; ++i) {
-        backbuffer[i] = TEST_XRGB_RED;
+        flag.backbuf[i] = TEST_XRGB_RED;
+        red_flag.backbuf[i] = TEST_XRGB_RED;
     }
 
-    resource_create_2d();
-    attach_backing();
-    set_scanout();
-    // Render to framebuffer memory.
-    transfer_to_host_2D();
-    flush();
+    // flag.pos_x  = 50;
+    // flag.pos_y  = 50;
+    // flag.disp_h = 50;
+    // flag.disp_w = 50;
+    flag.pos_x = 50;
+    flag.pos_y = 50;
+
+    // red_flag.disp_h = 50;
+    // red_flag.disp_w = 50;
+
+    texture_display(&flag);
+    texture_display(&red_flag);
+
     return 0;
 }
