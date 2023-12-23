@@ -120,11 +120,11 @@ parse_common_cfg(struct pci_func *pcif, volatile struct virtio_pci_common_cfg_t 
 static void
 setup_queue(struct virtq *queue, volatile struct virtio_pci_common_cfg_t *cfg_header) {
     cfg_header->queue_select = queue->queue_idx;
-    cfg_header->queue_desc = (uint64_t)PADDR(&queue->desc);
-    cfg_header->queue_avail = (uint64_t)PADDR(&queue->avail);
-    cfg_header->queue_used = (uint64_t)PADDR(&queue->used);
+    cfg_header->queue_desc   = (uint64_t)PADDR(&queue->desc);
+    cfg_header->queue_avail  = (uint64_t)PADDR(&queue->avail);
+    cfg_header->queue_used   = (uint64_t)PADDR(&queue->used);
     cfg_header->queue_enable = 1;
-    cfg_header->queue_size = VIRTQ_SIZE;
+    cfg_header->queue_size   = VIRTQ_SIZE;
     queue->log2_size = 6;
 
     queue->desc_free_count = 1 << queue->log2_size;
@@ -335,14 +335,16 @@ alloc_desc(struct virtq *queue, int writable) {
 
 static void
 send_and_recieve(struct virtq *queue, void *to_send, uint64_t send_size, void *to_recieve, uint64_t recieve_size) {
-    struct virtq_desc *desc[2];
-    desc[0] = alloc_desc(queue, 0);
+    struct virtq_desc *desc[2] = { 
+        [0] = alloc_desc(queue, 0),
+        [1] = alloc_desc(queue, 1)
+    };
+
     desc[0]->addr = (uint64_t)PADDR(to_send);
     desc[0]->len = send_size;
     desc[0]->flags = VIRTQ_DESC_F_NEXT;
     desc[0]->next = 1;
 
-    desc[1] = alloc_desc(queue, 1);
     desc[1]->addr = (uint64_t)PADDR(to_recieve);
     desc[1]->len = recieve_size;
 
