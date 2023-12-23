@@ -387,8 +387,8 @@ get_display_info() {
     send_and_recieve(&gpu.controlq, &display_info, sizeof(display_info), &res, sizeof(res));
 
     if (res.hdr.type == VIRTIO_GPU_RESP_OK_DISPLAY_INFO) {
-        gpu.screen_h = res.pmodes[0].r.height;
-        gpu.screen_w = res.pmodes[0].r.width;
+        gpu.screen_h = MIN(MAX_WINDOW_HEIGHT, res.pmodes[0].r.height);
+        gpu.screen_w = MIN(MAX_WINDOW_WIDTH, res.pmodes[0].r.width);
         cprintf("Display size %dx%d\n", gpu.screen_w, gpu.screen_h);
     }
 
