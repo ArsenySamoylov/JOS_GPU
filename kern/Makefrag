@@ -37,7 +37,7 @@ KERN_SRCFILES := kern/bootstrap.S \
 			kern/uefiasm.S \
 			kern/spinlock.c \
 			kern/virtio-gpu.c \
-			kern/sdl.c \
+			kern/graphic.c \
 			kern/pci.c
 
 ifeq ($(CONFIG_KSPACE),y)

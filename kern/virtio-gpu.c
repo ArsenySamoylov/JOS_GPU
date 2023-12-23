@@ -5,7 +5,7 @@
 #include <kern/pmap.h>
 #include <kern/pci.bits.h>
 #include <inc/string.h>
-#include "sdl.h"
+#include "graphic.h"
 
 struct virtio_gpu_device_t gpu;
 
@@ -505,8 +505,8 @@ set_scanout(struct surface_t *surface) {
     struct virtio_gpu_set_scanout scanout = {
             .hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT,
             // we don't support (yet) region drawing, only whole surface
-            .r.x = surface->pos_x,
-            .r.y = surface->pos_y,
+            .r.x = 0,
+            .r.y = 0,
             .r.width = surface->width,
             .r.height = surface->height,
             .resource_id = surface->resource_id,
@@ -527,14 +527,11 @@ set_scanout(struct surface_t *surface) {
 }
 
 static int
-transfer_to_host_2D(struct surface_t *surface) {
+transfer_to_host_2D(struct surface_t *surface, struct virtio_gpu_rect *rect) {
     // Use VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D to update the host resource from guest memory.
     struct virtio_gpu_transfer_to_host_2d transfer = {
             .hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D,
-            .r.x = surface->pos_x,
-            .r.y = surface->pos_y,
-            .r.width = surface->width, // we want to transfer whole buf
-            .r.height = surface->height,
+            .r = *rect,
             .resource_id = surface->resource_id};
     struct virtio_gpu_ctrl_hdr res = {};
 
@@ -551,14 +548,11 @@ transfer_to_host_2D(struct surface_t *surface) {
 }
 
 static int
-flush(struct surface_t *surface) {
+flush(struct surface_t *surface, struct virtio_gpu_rect *rect) {
     // Use VIRTIO_GPU_CMD_RESOURCE_FLUSH to flush the updated resource to the display.
     struct virtio_gpu_resource_flush flush = {
             .hdr.type = VIRTIO_GPU_CMD_RESOURCE_FLUSH,
-            .r.x = surface->pos_x,
-            .r.y = surface->pos_y,
-            .r.width = surface->width,
-            .r.height = surface->height,
+            .r = *rect,
             .resource_id = surface->resource_id};
 
     struct virtio_gpu_ctrl_hdr res = {};
@@ -578,22 +572,44 @@ flush(struct surface_t *surface) {
 void
 surface_init(struct surface_t *surface, uint32_t buf_w, uint32_t buf_h) {
     surface->resource_id = ++gpu.resource_id_cnt; // so we start from 1
-    surface->width = buf_w;
+    surface->width  = buf_w;
     surface->height = buf_h;
-    surface->pos_x = 0;
-    surface->pos_y = 0;
 
     resource_create_2d(surface);
     attach_backing(surface);
-    set_scanout(surface);
 }
 
+// SDL_Flip
 void
 surface_display(struct surface_t *surface) {
+    struct virtio_gpu_rect whole_rect = {0, 0, surface->width, surface->height};
+
+    // So we can flip between screens
+    if (gpu.last_scanout_id != surface->resource_id) { 
+        set_scanout(surface);
+        gpu.last_scanout_id = surface->resource_id;
+    }
+
     // update host surface
-    transfer_to_host_2D(surface);
+    transfer_to_host_2D(surface, &whole_rect);
     // flush to window
-    flush(surface);
+    flush(surface, &whole_rect);
+}
+
+// SDL_UpdateRect
+void
+surface_update_rect(struct surface_t *surface, uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+    if (height == 0 && width == 0 && x == 0 && y == 0) {
+        width  = surface->width;
+        height = surface->height;
+    }
+
+    struct virtio_gpu_rect rect = {0, 0, width, height};
+
+    // update host surface
+    transfer_to_host_2D(surface, &rect);
+    // flush to window
+    flush(surface, &rect);
 }
 
 void
@@ -602,13 +618,17 @@ surface_destroy(struct surface_t *surface) {
     resource_unref(surface->resource_id);
 }
 
-struct surface_t resource = {};
+struct surface_t surface = {};
 
 int
 test_draw() {
-    surface_init(&resource, gpu.screen_w, gpu.screen_h);
+    surface_init(&surface, gpu.screen_w, gpu.screen_h);
     struct vector pos = {.x = 50, .y = 50};
-    draw_circle(&resource, pos, 50, TEST_XRGB_RED);
-    surface_display(&resource);
+    surface_draw_circle(&surface, pos, 50, TEST_XRGB_RED);
+
+    struct virtio_gpu_rect rect = {100, 100, 30, 60};
+    surface_fill_rect(&surface, &rect, TEST_XRGB_BLUE);
+
+    surface_display(&surface);
     return 0;
 }

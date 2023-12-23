@@ -138,4 +138,6 @@ struct virtio_gpu_device_t {
     uint32_t screen_h;
 
     uint32_t resource_id_cnt;
+
+    uint32_t last_scanout_id;
 };
