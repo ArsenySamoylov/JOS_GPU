@@ -1,7 +1,9 @@
 #pragma once
 
 #include <stdint.h>
+#include <inc/assert.h>
 #include "virtio-queue.h"
+#include "font.h"
 
 #define MAX_WINDOW_WIDTH  640
 #define MAX_WINDOW_HEIGHT 480
@@ -28,6 +30,13 @@ void surface_destroy(struct surface_t *surface);
 
 typedef struct virtio_gpu_rect rect_t; // somehow it doesn't work...
 
+struct font_t {
+    uint32_t char_width;
+    uint32_t char_height;
+
+    struct xrgb_pixel* bitmaps;
+};
+
 struct vector {
     uint64_t x;
     uint64_t y;
@@ -39,6 +48,12 @@ surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, u
 // SDL_FillRect
 void
 surface_fill_rect(struct surface_t *surface, const rect_t *rect, uint32_t color);
+
+void
+load_font(struct font_t *font);
+
+void
+surface_draw_text(struct surface_t *surface, struct font_t *font, const char *str, uint32_t x, uint32_t y);
 
 void sleep(uint32_t ms);
 uint64_t current_ms();

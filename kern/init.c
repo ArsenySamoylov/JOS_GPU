@@ -127,8 +127,6 @@ early_boot_pml4_init(void) {
 #endif
 }
 
-extern char* __bin_start;
-extern char* __bin_end;
 void
 i386_init(void) {
 
@@ -161,7 +159,6 @@ i386_init(void) {
     /* Choose the timer used for scheduling: hpet or pit */
     timers_schedule("hpet1");
 
-    cprintf("Bin start: %p, %d %c\n", &__bin_start, (int)(&__bin_end - &__bin_start), *((char*)&__bin_start));
     // GPU Lab
     pci_init();
 
