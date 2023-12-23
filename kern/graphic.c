@@ -1,4 +1,9 @@
 #include "graphic.h"
+#include <inc/x86.h>
+#include <inc/stdio.h>
+#include "timer.h"
+
+static uint64_t cpu_freq_ms = 0;
 
 void
 surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, uint32_t color) {
@@ -18,5 +23,18 @@ surface_fill_rect(struct surface_t *surface, const struct virtio_gpu_rect *rect,
         for (int x = rect->x; x < rect->x + rect->width; ++x) {
             surface->backbuf[y * surface->width + x] = color;
         }
+    }
+}
+
+void
+sleep(uint32_t ms) {
+    if (!cpu_freq_ms) {
+        cpu_freq_ms = timer_for_schedule->get_cpu_freq() / 1000;
+    }
+
+    uint64_t target = read_tsc() + cpu_freq_ms * ms;
+
+    while (read_tsc() < target) {
+        asm volatile ("pause");
     }
 }

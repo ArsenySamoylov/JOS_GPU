@@ -615,11 +615,6 @@ surface_destroy(struct surface_t *surface) {
 struct surface_t surface = {};
 struct surface_t surface2 = {};
 
-static void test_small_sleep() {
-    volatile uint64_t i = 0;
-    while (i < 2000000) { ++i; asm volatile("pause"); }
-}
-
 int
 test_draw() {
     surface_init(&surface, gpu.screen_w, gpu.screen_h);
@@ -633,9 +628,9 @@ test_draw() {
 
     while(1) {
         surface_display(&surface);
-        test_small_sleep();
+        sleep(300);
         surface_display(&surface2);
-        test_small_sleep();
+        sleep(300);
     }
     return 0;
 }

@@ -152,15 +152,15 @@ i386_init(void) {
     /* Framebuffer init should be done after memory init */
     // fb_init();
     // if (trace_init) cprintf("Framebuffer initialised\n");
-
-    // GPU Lab
-    pci_init();
     
     /* User environment initialization functions */
     env_init();
 
     /* Choose the timer used for scheduling: hpet or pit */
     timers_schedule("hpet1");
+
+    // GPU Lab
+    pci_init();
 
 #ifdef CONFIG_KSPACE
     /* Touch all you want */
