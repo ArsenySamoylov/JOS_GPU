@@ -613,16 +613,29 @@ surface_destroy(struct surface_t *surface) {
 }
 
 struct surface_t surface = {};
+struct surface_t surface2 = {};
+
+static void test_small_sleep() {
+    volatile uint64_t i = 0;
+    while (i < 2000000) { ++i; asm volatile("pause"); }
+}
 
 int
 test_draw() {
     surface_init(&surface, gpu.screen_w, gpu.screen_h);
+    surface_init(&surface2, gpu.screen_w, gpu.screen_h);
+
     struct vector pos = {.x = 50, .y = 50};
     surface_draw_circle(&surface, pos, 50, TEST_XRGB_RED);
 
     rect_t rect = {100, 100, 30, 60};
-    surface_fill_rect(&surface, &rect, TEST_XRGB_BLUE);
+    surface_fill_rect(&surface2, &rect, TEST_XRGB_BLUE);
 
-    surface_display(&surface);
+    while(1) {
+        surface_display(&surface);
+        test_small_sleep();
+        surface_display(&surface2);
+        test_small_sleep();
+    }
     return 0;
 }
