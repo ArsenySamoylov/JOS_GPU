@@ -215,7 +215,7 @@ init_gpu(struct pci_func *pcif) {
     }
 
     get_display_info();
-    test_draw();
+    // test_draw();
 }
 
 

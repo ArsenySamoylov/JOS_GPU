@@ -264,6 +264,7 @@ get_keyboard_key() {
 
 int
 pong() {
+    cprintf("i am here\n");
     int quit = 0;
     int result = 0;
 
@@ -272,6 +273,7 @@ pong() {
 
     // render loop
     while (quit == 0) {
+        uint32_t next_game_tick = read_tsc();
         // draw background
 
         rect_t screen_rect = {.x = 0, .y = 0, .height = game_info.screen.height, .width = game_info.screen.width};
@@ -294,6 +296,13 @@ pong() {
         draw_ball(&game_info.screen, &game_info.ball);
 
         surface_display(&game_info.screen);
+
+        next_game_tick += 1000 / 60;
+        // uint32_t sleep_time = next_game_tick - read_tsc();
+
+        // if (sleep >= 0) {
+        //     sleep(sleep_time);
+        // }
     }
     surface_destroy(&game_info.screen);
     return 0;

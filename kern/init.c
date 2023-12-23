@@ -155,13 +155,13 @@ i386_init(void) {
     // if (trace_init) cprintf("Framebuffer initialised\n");
 
     // GPU Lab
-    pci_init();
     
     /* User environment initialization functions */
     env_init();
 
     /* Choose the timer used for scheduling: hpet or pit */
     timers_schedule("hpet1");
+    pci_init();
 
     cprintf("starting pong\n");
     pong();
