@@ -359,12 +359,8 @@ send_and_recieve(struct virtq *queue, void *to_send, uint64_t send_size, void *t
 
 int
 get_display_info() {
-    struct virtio_gpu_ctrl_hdr display_info;
-    struct virtio_gpu_resp_display_info res;
-
-    memset(&display_info, 0, sizeof(display_info));
-    display_info.type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
-    memset(&res, 0, sizeof(res));
+    struct virtio_gpu_ctrl_hdr display_info = {.type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO};
+    struct virtio_gpu_resp_display_info res = {};
 
     send_and_recieve(&gpu.controlq, &display_info, sizeof(display_info), &res, sizeof(res));
 
@@ -381,15 +377,15 @@ static int
 resource_create_2d() {
     // Create a host resource using VIRTIO_GPU_CMD_RESOURCE_CREATE_2D.
 
-    struct virtio_gpu_resource_create_2d resource_2d;
-    struct virtio_gpu_ctrl_hdr res;
-    memset(&resource_2d, 0, sizeof(resource_2d));
-    memset(&res, 0, sizeof(res));
-    resource_2d.hdr.type = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D;
-    resource_2d.height = gpu.screen_h;
-    resource_2d.width = gpu.screen_w;
-    resource_2d.format = VIRTIO_GPU_FORMAT_X8R8G8B8_UNORM;
-    resource_2d.resource_id = DEFAULT_RESOURCE_ID;
+    struct virtio_gpu_resource_create_2d resource_2d = {
+        .hdr.type    = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D,
+        .height      = gpu.screen_h,
+        .width       = gpu.screen_w,
+        .format      = VIRTIO_GPU_FORMAT_X8R8G8B8_UNORM,
+        .resource_id = DEFAULT_RESOURCE_ID
+    };
+
+    struct virtio_gpu_ctrl_hdr res = {};
 
     // send and recieve information
 
@@ -410,16 +406,14 @@ attach_backing() {
     // using VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING. Scatter lists are supported,
     // so the framebuffer doesn’t need to be contignous in guest physical memory.
 
-    struct virtio_gpu_ctrl_hdr res;
-    memset(&res, 0, sizeof(res));
+    struct virtio_gpu_ctrl_hdr res = {};
 
     // Calculate size of attach backing command
     size_t backing_cmd_sz = sizeof(struct virtio_gpu_resource_attach_backing) +
                             sizeof(struct virtio_gpu_mem_entry);
 
     // Allocate a buffer to hold virtio_gpu_resource_attach_backing_t command
-    struct virtio_gpu_resource_attach_backing backing_cmd[2];
-    memset(backing_cmd, 0, 2 * sizeof(struct virtio_gpu_resource_attach_backing));
+    struct virtio_gpu_resource_attach_backing backing_cmd[2] = {};
     backing_cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING;
 
     backing_cmd->resource_id = DEFAULT_RESOURCE_ID;
@@ -446,18 +440,16 @@ static int
 set_scanout() {
     // Use VIRTIO_GPU_CMD_SET_SCANOUT to link the framebuffer to a display scanout.
 
-    struct virtio_gpu_set_scanout scanout;
-    struct virtio_gpu_ctrl_hdr res;
-    memset(&scanout, 0, sizeof(scanout));
-    memset(&res, 0, sizeof(res));
-
-    scanout.hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT;
-    scanout.r.x = 0;
-    scanout.r.y = 0;
-    scanout.r.width = gpu.screen_w;
-    scanout.r.height = gpu.screen_h;
-    scanout.resource_id = DEFAULT_RESOURCE_ID;
-    scanout.scanout_id = 0;
+    struct virtio_gpu_set_scanout scanout = {
+        .hdr.type    = VIRTIO_GPU_CMD_SET_SCANOUT,
+        .r.x         = 0,
+        .r.y         = 0,
+        .r.width     = gpu.screen_w,
+        .r.height    = gpu.screen_h,
+        .resource_id = DEFAULT_RESOURCE_ID,
+        .scanout_id  = 0
+    };
+    struct virtio_gpu_ctrl_hdr res = {};
 
     send_and_recieve(&gpu.controlq, &scanout, sizeof(scanout),
                      &res, sizeof(res));
@@ -474,17 +466,16 @@ set_scanout() {
 static int
 transfer_to_host_2D() {
     // Use VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D to update the host resource from guest memory.
-    struct virtio_gpu_transfer_to_host_2d transfer;
-    struct virtio_gpu_ctrl_hdr res;
-    memset(&transfer, 0, sizeof(transfer));
-    memset(&res, 0, sizeof(res));
+    struct virtio_gpu_transfer_to_host_2d transfer = {
+        .hdr.type    = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D,
+        .r.x         = 0,
+        .r.y         = 0,
+        .r.width     = gpu.screen_w,
+        .r.height    = gpu.screen_h,
+        .resource_id = DEFAULT_RESOURCE_ID    
+    };
+    struct virtio_gpu_ctrl_hdr res = {};
 
-    transfer.hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D;
-    transfer.r.x = 0;
-    transfer.r.y = 0;
-    transfer.r.width = gpu.screen_w;
-    transfer.r.height = gpu.screen_h;
-    transfer.resource_id = DEFAULT_RESOURCE_ID;
 
     send_and_recieve(&gpu.controlq, &transfer, sizeof(transfer),
                      &res, sizeof(res));
@@ -502,17 +493,16 @@ transfer_to_host_2D() {
 static int
 flush() {
     // Use VIRTIO_GPU_CMD_RESOURCE_FLUSH to flush the updated resource to the display.
-    struct virtio_gpu_resource_flush flush;
-    struct virtio_gpu_ctrl_hdr res;
-    memset(&flush, 0, sizeof(flush));
-    memset(&res, 0, sizeof(res));
+    struct virtio_gpu_resource_flush flush = {
+        .hdr.type    = VIRTIO_GPU_CMD_RESOURCE_FLUSH,
+        .r.x         = 0,
+        .r.y         = 0,
+        .r.width     = gpu.screen_w,
+        .r.height    = gpu.screen_h,
+        .resource_id = DEFAULT_RESOURCE_ID
+    };
+    struct virtio_gpu_ctrl_hdr res = {};
 
-    flush.hdr.type = VIRTIO_GPU_CMD_RESOURCE_FLUSH;
-    flush.r.x = 0;
-    flush.r.y = 0;
-    flush.r.width = gpu.screen_w;
-    flush.r.height = gpu.screen_h;
-    flush.resource_id = DEFAULT_RESOURCE_ID;
 
     send_and_recieve(&gpu.controlq, &flush, sizeof(flush),
                      &res, sizeof(res));
