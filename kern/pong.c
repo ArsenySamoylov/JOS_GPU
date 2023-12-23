@@ -8,6 +8,7 @@ static int paddle_width = 10;
 static int paddle_height = 50;
 static int ball_size = 10;
 static int player_paddle_speed = 10;
+static int64_t delay = 1000 * 1000;
 
 typedef struct ball_s {
     int x, y;     /* position on the screen */
@@ -192,6 +193,11 @@ move_paddle_ai(ball_t *ball, struct surface_t *screen, paddle_t *paddle) {
             }
         }
     }
+    if (paddle[0].y <= 0) {
+        paddle[0].y = 0;
+    } else if (paddle[1].y >= screen->height - paddle[0].h) {
+        paddle[0].y = screen->height - paddle[0].h;
+    }
 }
 
 static void
@@ -280,7 +286,7 @@ pong() {
 
     // render loop
     while (quit == 0) {
-        int64_t next_game_tick = read_tsc();
+        int64_t next_game_tick = current_ms();
         // draw background
 
         rect_t screen_rect = {.x = 0, .y = 0, .height = game_info.screen.height, .width = game_info.screen.width};
@@ -307,9 +313,9 @@ pong() {
 
         surface_display(&game_info.screen);
 
-        next_game_tick += 12000 * 1000;
+        next_game_tick += 12 * delay;
 
-        int64_t sleep_time = (next_game_tick - (int64_t)read_tsc()) / (800 * 1000);
+        int64_t sleep_time = (next_game_tick - (int64_t)current_ms()) / delay;
 
         if (sleep_time >= 0) {
             sleep(sleep_time);
