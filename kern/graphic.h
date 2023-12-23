@@ -41,3 +41,4 @@ void
 surface_fill_rect(struct surface_t *surface, const rect_t *rect, uint32_t color);
 
 void sleep(uint32_t ms);
+uint64_t current_ms();

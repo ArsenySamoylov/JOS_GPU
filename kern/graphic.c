@@ -38,3 +38,11 @@ sleep(uint32_t ms) {
         asm volatile ("pause");
     }
 }
+
+uint64_t current_ms() {
+    if (!cpu_freq_ms) {
+        cpu_freq_ms = timer_for_schedule->get_cpu_freq() / 1000;
+    }
+
+    return read_tsc() / cpu_freq_ms;
+}
