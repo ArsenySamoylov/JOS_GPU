@@ -37,4 +37,4 @@ surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, u
 
 // SDL_FillRect
 void
-surface_fill_rect(struct surface_t *surface, const struct virtio_gpu_rect *rect, uint32_t color);
+surface_fill_rect(struct surface_t *surface, const rect_t *rect, uint32_t color);

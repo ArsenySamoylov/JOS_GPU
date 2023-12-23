@@ -527,7 +527,7 @@ set_scanout(struct surface_t *surface) {
 }
 
 static int
-transfer_to_host_2D(struct surface_t *surface, struct virtio_gpu_rect *rect) {
+transfer_to_host_2D(struct surface_t *surface, rect_t *rect) {
     // Use VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D to update the host resource from guest memory.
     struct virtio_gpu_transfer_to_host_2d transfer = {
             .hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D,
@@ -548,7 +548,7 @@ transfer_to_host_2D(struct surface_t *surface, struct virtio_gpu_rect *rect) {
 }
 
 static int
-flush(struct surface_t *surface, struct virtio_gpu_rect *rect) {
+flush(struct surface_t *surface, rect_t *rect) {
     // Use VIRTIO_GPU_CMD_RESOURCE_FLUSH to flush the updated resource to the display.
     struct virtio_gpu_resource_flush flush = {
             .hdr.type = VIRTIO_GPU_CMD_RESOURCE_FLUSH,
@@ -582,7 +582,7 @@ surface_init(struct surface_t *surface, uint32_t buf_w, uint32_t buf_h) {
 // SDL_Flip
 void
 surface_display(struct surface_t *surface) {
-    struct virtio_gpu_rect whole_rect = {0, 0, surface->width, surface->height};
+    rect_t whole_rect = {0, 0, surface->width, surface->height};
 
     // So we can flip between screens
     if (gpu.last_scanout_id != surface->resource_id) { 
@@ -604,7 +604,7 @@ surface_update_rect(struct surface_t *surface, uint32_t x, uint32_t y, uint32_t 
         height = surface->height;
     }
 
-    struct virtio_gpu_rect rect = {0, 0, width, height};
+    rect_t rect = {0, 0, width, height};
 
     // update host surface
     transfer_to_host_2D(surface, &rect);
@@ -626,7 +626,7 @@ test_draw() {
     struct vector pos = {.x = 50, .y = 50};
     surface_draw_circle(&surface, pos, 50, TEST_XRGB_RED);
 
-    struct virtio_gpu_rect rect = {100, 100, 30, 60};
+    rect_t rect = {100, 100, 30, 60};
     surface_fill_rect(&surface, &rect, TEST_XRGB_BLUE);
 
     surface_display(&surface);
