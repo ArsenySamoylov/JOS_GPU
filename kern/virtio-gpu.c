@@ -215,7 +215,7 @@ init_gpu(struct pci_func *pcif) {
     }
 
     get_display_info();
-    test_draw();
+    // test_draw();
 }
 
 
@@ -539,7 +539,7 @@ transfer_to_host_2D(struct surface_t *surface, rect_t *rect) {
                      &res, sizeof(res));
 
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
-        cprintf("Transfer to host 2D completed\n");
+        // cprintf("Transfer to host 2D completed\n");
         return 0;
     } else {
         cprintf("Res type %s\n", virtio_strerror(res.type));
@@ -561,7 +561,7 @@ flush(struct surface_t *surface, rect_t *rect) {
                      &res, sizeof(res));
 
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
-        cprintf("Flush completed\n");
+        // cprintf("Flush completed\n");
         return 0;
     } else {
         cprintf("Res type %s\n", virtio_strerror(res.type));
