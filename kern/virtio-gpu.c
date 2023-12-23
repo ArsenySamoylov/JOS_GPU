@@ -628,8 +628,8 @@ test_draw() {
 
     struct font_t font;
     load_font(&font);
-    surface_draw_text(&surface,  &font, "(s)OSi", 200, 200);
-    surface_draw_text(&surface2, &font, "(s)OSi", 200, 200);
+    surface_draw_text(&surface,  &font, "osdev", 200, 200);
+    surface_draw_text(&surface2, &font, "osdev", 200, 200);
 
     while(1) {
         surface_display(&surface);
