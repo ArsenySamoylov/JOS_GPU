@@ -21,9 +21,7 @@
 #define VIRTIO_PCI_ISR_NOTIFY 0x1
 #define VIRTIO_PCI_IRQ_CONFIG 0x1
 #define DEFAULT_RESOURCE_ID   0x1
-#define TEST_XRGB_WHITE 0xffffffff
-#define TEST_XRGB_BLUE  0xff2200FF
-#define TEST_XRGB_RED   0x0000ff00
+
 
 /* The device uses this in used->flags to advise the driver: don't kick me
  * when you add a buffer.  It's unreliable, so it's simply an
@@ -236,6 +234,20 @@ struct virtio_gpu_transfer_to_host_2d {
         uint32_t padding; 
 }; 
 
+// for detach backing
+struct virtio_gpu_resource_detach_backing { 
+        struct virtio_gpu_ctrl_hdr hdr; 
+        uint32_t resource_id; 
+        uint32_t padding; 
+}; 
+
+
+// for destroy resource
+struct virtio_gpu_resource_unref { 
+        struct virtio_gpu_ctrl_hdr hdr; 
+        uint32_t resource_id; 
+        uint32_t padding; 
+};
 
 static inline int
 virtq_need_event(uint16_t event_idx, uint16_t new_idx, uint16_t old_idx) {
