@@ -582,18 +582,7 @@ surface_init(struct surface_t *surface, uint32_t buf_w, uint32_t buf_h) {
 // SDL_Flip
 void
 surface_display(struct surface_t *surface) {
-    rect_t whole_rect = {0, 0, surface->width, surface->height};
-
-    // So we can flip between screens
-    if (gpu.last_scanout_id != surface->resource_id) { 
-        set_scanout(surface);
-        gpu.last_scanout_id = surface->resource_id;
-    }
-
-    // update host surface
-    transfer_to_host_2D(surface, &whole_rect);
-    // flush to window
-    flush(surface, &whole_rect);
+    surface_update_rect(surface, 0, 0, surface->width, surface->height);
 }
 
 // SDL_UpdateRect
@@ -602,6 +591,11 @@ surface_update_rect(struct surface_t *surface, uint32_t x, uint32_t y, uint32_t 
     if (height == 0 && width == 0 && x == 0 && y == 0) {
         width  = surface->width;
         height = surface->height;
+    }
+
+    if (gpu.last_scanout_id != surface->resource_id) { 
+        set_scanout(surface);
+        gpu.last_scanout_id = surface->resource_id;
     }
 
     rect_t rect = {0, 0, width, height};
