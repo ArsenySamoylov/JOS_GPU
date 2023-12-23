@@ -3,12 +3,28 @@
 #include <inc/stdio.h>
 #include "console.h"
 
-static int max_score = 10;
+static int max_score = 9;
 static int paddle_width = 10;
 static int paddle_height = 50;
 static int ball_size = 10;
 static int player_paddle_speed = 10;
 static int64_t delay = 1000 * 1000;
+static int default_segment_width = 7;
+static int default_segment_height = 40;
+// first three is horizontal
+static char digit2seg[] = {
+        0b1111101, // 0
+        0b1010000, // 1
+        0b0110111, // 2
+        0b1010111, // 3
+        0b1011010, // 4
+        0b1001111, // 5
+        0b1101111, // 6
+        0b1010100, // 7
+        0b1111111, // 8
+        0b1011111, // 9
+};
+
 
 typedef struct ball_s {
     int x, y;     /* position on the screen */
@@ -63,6 +79,52 @@ init_game() {
     game_info.paddle[1].h = paddle_height;
 }
 
+void
+draw_number(struct surface_t *screen, uint64_t x, uint64_t y, int n) {
+    rect_t segment;
+
+    if (sizeof(digit2seg) < n) {
+        return;
+    }
+    char nseg = digit2seg[n];
+    uint32_t padding = default_segment_width / 2;
+
+    segment.x = x + padding;
+    segment.y = y;
+    segment.width = default_segment_height;
+    segment.height = default_segment_width;
+    for (int i = 0; i < 3; ++i) {
+        if ((nseg >> i) & 1) {
+            surface_fill_rect(screen, &segment, TEST_XRGB_WHITE);
+        }
+        segment.y += default_segment_height;
+    }
+
+
+    segment.height = default_segment_height;
+    segment.width = default_segment_width;
+
+    for (int i = 3; i < 7; ++i) {
+        if (i == 3) {
+            segment.x = x;
+            segment.y = y;
+        } else if (i == 4) {
+            segment.x = x + default_segment_height;
+            segment.y = y;
+        } else if (i == 5) {
+            segment.x = x;
+            segment.y = y + default_segment_height;
+        } else if (i == 6) {
+            segment.x = x + default_segment_height;
+            segment.y = y + default_segment_height;
+        }
+        segment.y += padding;
+        if ((nseg >> i) & 1) {
+            surface_fill_rect(screen, &segment, TEST_XRGB_WHITE);
+        }
+    }
+}
+
 int
 check_score(int *score) {
     for (int i = 0; i < 2; i++) {
@@ -102,13 +164,11 @@ move_ball(ball_t *ball, int *score, struct surface_t *screen, paddle_t *paddle) 
     /* Turn the ball around if it hits the edge of the screen. */
     if (ball->x < 0) {
         score[1] += 1;
-        cprintf("player wins, total score %d/%d\n", score[0], score[1]);
         init_game();
     }
 
     if (ball->x > screen->width - 10) {
         score[0] += 1;
-        cprintf("ai wins, total score %d/%d\n", score[0], score[1]);
         init_game();
     }
 
@@ -136,14 +196,14 @@ move_ball(ball_t *ball, int *score, struct surface_t *screen, paddle_t *paddle) 
             if (ball->v_x > 0) {
 
                 // teleport ball to avoid mutli collision glitch
-                if (ball->x < 30) {
-                    ball->x = 30;
+                if (ball->x < ball->w) {
+                    ball->x = ball->w;
                 }
                 // ball moving left
             } else {
                 // teleport ball to avoid mutli collision glitch
-                if (ball->x > MAX_WINDOW_WIDTH - 40) {
-                    ball->x = MAX_WINDOW_WIDTH - 40;
+                if (ball->x > MAX_WINDOW_WIDTH - ball->w) {
+                    ball->x = MAX_WINDOW_WIDTH - ball->w;
                 }
             }
         }
@@ -291,6 +351,8 @@ pong() {
 
         rect_t screen_rect = {.x = 0, .y = 0, .height = game_info.screen.height, .width = game_info.screen.width};
         surface_fill_rect(&game_info.screen, &screen_rect, 0x00000000);
+        draw_number(&game_info.screen, game_info.screen.height / 2 - default_segment_height / 2, 10, game_info.score[0]);
+        draw_number(&game_info.screen, game_info.screen.height / 2 + 7 * default_segment_height /2, 10, game_info.score[1]);
 
         result = check_score(game_info.score);
         // if either player wins, change to game over state
@@ -313,13 +375,16 @@ pong() {
 
         surface_display(&game_info.screen);
 
-        next_game_tick += 12 * delay;
+        int64_t temp = next_game_tick;
+        next_game_tick += 15 * delay;
 
         int64_t sleep_time = (next_game_tick - (int64_t)current_ms()) / delay;
 
         if (sleep_time >= 0) {
             sleep(sleep_time);
         }
+        // cprintf("fps %ld\n", 1000 / ((int64_t)current_ms() - temp));
+
     }
     surface_destroy(&game_info.screen);
     return 0;
