@@ -273,7 +273,7 @@ irq_handler() {
     if (isr & VIRTIO_PCI_ISR_CONFIG) {
         config_irq();
     } else if (isr & VIRTIO_PCI_ISR_NOTIFY) {
-        cprintf("Recycle descriptors\n");
+        // cprintf("Recycle descriptors\n");
         recycle_used(&gpu.controlq);
         notify_queue(&gpu.controlq);
     }
@@ -300,7 +300,7 @@ queue_avail(struct virtq *queue, uint32_t count) {
         if (!skip && chain_start != ~((uint32_t)0))
             queue->avail.ring[avail_head++ & mask] = chain_start;
     }
-    cprintf("avail head %d\n", avail_head);
+    // cprintf("avail head %d\n", avail_head);
     atomic_st_rel(&queue->avail.used_event, avail_head - 1);
 
     atomic_fence();
@@ -358,6 +358,27 @@ send_and_recieve(struct virtq *queue, void *to_send, uint64_t send_size, void *t
     irq_handler();
 }
 
+static const char *
+virtio_strerror(uint32_t error) {
+    switch (error) {
+    case VIRTIO_GPU_RESP_ERR_UNSPEC:
+        return "unspecified error";
+    case VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY:
+        return "out of memory";
+    case VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID:
+        return "invalid scanout id";
+    case VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID:
+        return "invalid resource id";
+    case VIRTIO_GPU_RESP_ERR_INVALID_CONTEXT_ID:
+        return "invalid context id";
+    case VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER:
+        return "invalid parameter";
+    default:
+        break;
+    }
+    return "<unknown>";
+}
+
 int
 get_display_info() {
     struct virtio_gpu_ctrl_hdr display_info = {.type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO};
@@ -395,6 +416,7 @@ resource_create_2d(struct texture_2d *texture) {
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
         cprintf("Success 2d resource created\n");
     } else {
+        cprintf("Res type %s\n", virtio_strerror(res.type));
         return 1;
     }
     return 0;
@@ -432,7 +454,7 @@ attach_backing(struct surface_t *surface) {
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
         cprintf("Success attach backing\n");
     } else {
-        return 1;
+        cprintf("Res error %s\n", virtio_strerror(res.type));
     }
     return 0;
 }
@@ -499,7 +521,7 @@ set_scanout(struct surface_t *surface) {
         cprintf("Success setting scanout\n");
         return 0;
     } else {
-        cprintf("Res type %d\n", res.type);
+        cprintf("Res type %s\n", virtio_strerror(res.type));
     }
     return 1;
 }
@@ -523,7 +545,7 @@ transfer_to_host_2D(struct surface_t *surface) {
         cprintf("Transfer to host 2D completed\n");
         return 0;
     } else {
-        cprintf("Res type %d\n", res.type);
+        cprintf("Res type %s\n", virtio_strerror(res.type));
     }
     return 1;
 }
@@ -548,7 +570,7 @@ flush(struct surface_t *surface) {
         cprintf("Flush completed\n");
         return 0;
     } else {
-        cprintf("Res type %d\n", res.type);
+        cprintf("Res type %s\n", virtio_strerror(res.type));
     }
     return 1;
 }
