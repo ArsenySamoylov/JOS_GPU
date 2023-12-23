@@ -3,7 +3,10 @@
 #include <inc/stdio.h>
 #include "console.h"
 
-#define MAX_SCORE 10
+static int max_score = 10;
+static int paddle_width = 10;
+static int paddle_height = 50;
+static int ball_size = 10;
 
 typedef struct ball_s {
     int x, y;     /* position on the screen */
@@ -32,6 +35,7 @@ enum Key {
     KEY_DOWN,
     KEY_RIGHT,
     KEY_LEFT,
+    KEY_SPACE = 32,
 };
 
 
@@ -41,26 +45,26 @@ init_game() {
 
     game_info.ball.x = game_info.screen.width / 2;
     game_info.ball.y = game_info.screen.height / 2;
-    game_info.ball.w = 10;
-    game_info.ball.h = 10;
+    game_info.ball.w = ball_size;
+    game_info.ball.h = ball_size;
     game_info.ball.v_y = 1;
     game_info.ball.v_x = 1;
 
     game_info.paddle[0].x = 20;
-    game_info.paddle[0].y = game_info.screen.height / 2 - 50;
-    game_info.paddle[0].w = 10;
-    game_info.paddle[0].h = 50;
+    game_info.paddle[0].y = game_info.screen.height / 2 - paddle_height;
+    game_info.paddle[0].w = paddle_width;
+    game_info.paddle[0].h = paddle_height;
 
-    game_info.paddle[1].x = game_info.screen.width - 20 - 10;
-    game_info.paddle[1].y = game_info.screen.height / 2 - 50;
-    game_info.paddle[1].w = 10;
-    game_info.paddle[1].h = 50;
+    game_info.paddle[1].x = game_info.screen.width - 20 - paddle_width;
+    game_info.paddle[1].y = game_info.screen.height / 2 - paddle_height;
+    game_info.paddle[1].w = paddle_width;
+    game_info.paddle[1].h = paddle_height;
 }
 
 int
 check_score(int *score) {
     for (int i = 0; i < 2; i++) {
-        if (score[i] == MAX_SCORE) {
+        if (score[i] == max_score) {
             score[0] = 0;
             score[1] = 0;
 
@@ -258,6 +262,8 @@ get_keyboard_key() {
         if (key >= KEY_UP && key <= KEY_LEFT) {
             return key;
         }
+    } else if (key == KEY_SPACE) {
+        return key;
     }
     return KEY_UNKNOWN;
 }
@@ -273,7 +279,7 @@ pong() {
 
     // render loop
     while (quit == 0) {
-        uint32_t next_game_tick = read_tsc();
+        int64_t next_game_tick = read_tsc();
         // draw background
 
         rect_t screen_rect = {.x = 0, .y = 0, .height = game_info.screen.height, .width = game_info.screen.width};
@@ -284,6 +290,9 @@ pong() {
 
         enum Key keyboard_key = get_keyboard_key();
 
+        if (keyboard_key == KEY_SPACE) {
+            quit = 1;
+        }
         if (keyboard_key != KEY_UNKNOWN) {
             move_paddle(&game_info.screen, game_info.paddle, keyboard_key);
         }
@@ -298,11 +307,12 @@ pong() {
         surface_display(&game_info.screen);
 
         next_game_tick += 1000 / 60;
-        // uint32_t sleep_time = next_game_tick - read_tsc();
 
-        // if (sleep >= 0) {
-        //     sleep(sleep_time);
-        // }
+        int64_t sleep_time = next_game_tick - read_tsc();
+
+        if (sleep_time >= 0) {
+            sleep(sleep_time);
+        }
     }
     surface_destroy(&game_info.screen);
     return 0;
