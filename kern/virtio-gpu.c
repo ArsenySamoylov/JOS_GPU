@@ -5,7 +5,7 @@
 #include <kern/pmap.h>
 #include <kern/pci.bits.h>
 #include <inc/string.h>
-#include "graphic.h"
+#include "sdl.h"
 
 struct virtio_gpu_device_t gpu;
 
