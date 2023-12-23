@@ -24,10 +24,10 @@ struct font_header_t {
 struct xrgb_pixel {
     union {
         struct {
-            uint8_t B;
-            uint8_t G;
-            uint8_t R;
             uint8_t is_enabled;
+            uint8_t R;
+            uint8_t G;
+            uint8_t B;
         };
 
         uint32_t xrgb_val;
