@@ -396,15 +396,15 @@ get_display_info() {
 }
 
 static int
-resource_create_2d(struct texture_2d *texture) {
+resource_create_2d(struct surface_t *surface) {
     // Create a host resource using VIRTIO_GPU_CMD_RESOURCE_CREATE_2D.
 
     struct virtio_gpu_resource_create_2d resource_2d = {
-        .hdr.type    = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D,
-        .height      = texture->height,
-        .width       = texture->width,
-        .format      = VIRTIO_GPU_FORMAT_X8R8G8B8_UNORM,
-        .resource_id = texture->resource_id
+            .hdr.type    = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D,
+            .height      = surface->height,
+            .width       = surface->width,
+            .format      = VIRTIO_GPU_FORMAT_X8R8G8B8_UNORM,
+            .resource_id = surface->resource_id
     };
 
     struct virtio_gpu_ctrl_hdr res = {};
