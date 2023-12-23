@@ -23,6 +23,7 @@ struct surface_t {
 
 void surface_init(struct surface_t *surface, uint32_t buf_w, uint32_t buf_h);
 void surface_display(struct surface_t *surface);
+void surface_update_rect(struct surface_t *surface, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 void surface_destroy(struct surface_t *surface);
 
 typedef struct virtio_gpu_rect rect_t; // somehow it doesn't work...
