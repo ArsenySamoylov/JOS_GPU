@@ -7,6 +7,7 @@ static int max_score = 10;
 static int paddle_width = 10;
 static int paddle_height = 50;
 static int ball_size = 10;
+static int player_paddle_speed = 10;
 
 typedef struct ball_s {
     int x, y;     /* position on the screen */
@@ -140,8 +141,8 @@ move_ball(ball_t *ball, int *score, struct surface_t *screen, paddle_t *paddle) 
                 // ball moving left
             } else {
                 // teleport ball to avoid mutli collision glitch
-                if (ball->x > MAX_WINDOW_WIDTH - 30) {
-                    ball->x = MAX_WINDOW_WIDTH - 30;
+                if (ball->x > MAX_WINDOW_WIDTH - 40) {
+                    ball->x = MAX_WINDOW_WIDTH - 40;
                 }
             }
         }
@@ -150,8 +151,8 @@ move_ball(ball_t *ball, int *score, struct surface_t *screen, paddle_t *paddle) 
 
 static void
 move_paddle_ai(ball_t *ball, struct surface_t *screen, paddle_t *paddle) {
-    int center = paddle[0].y + 25;
-    int screen_center = screen->height / 2 - 25;
+    int center = paddle[0].y + paddle_height / 2;
+    int screen_center = screen->height / 2 - paddle_height / 2;
     int ball_speed = ball->v_y;
 
     if (ball_speed < 0) {
@@ -199,14 +200,14 @@ move_paddle(struct surface_t *screen, paddle_t *paddle, enum Key direction) {
         if (paddle[1].y >= screen->height - paddle[1].h) {
             paddle[1].y = screen->height - paddle[1].h;
         } else {
-            paddle[1].y += 5;
+            paddle[1].y += player_paddle_speed;
         }
     }
     if (direction == KEY_UP) {
         if (paddle[1].y <= 0) {
             paddle[1].y = 0;
         } else {
-            paddle[1].y -= 5;
+            paddle[1].y -= player_paddle_speed;
         }
     }
 }
@@ -306,9 +307,9 @@ pong() {
 
         surface_display(&game_info.screen);
 
-        next_game_tick += 1000 / 60;
+        next_game_tick += 12000 * 1000;
 
-        int64_t sleep_time = next_game_tick - read_tsc();
+        int64_t sleep_time = (next_game_tick - (int64_t)read_tsc()) / (800 * 1000);
 
         if (sleep_time >= 0) {
             sleep(sleep_time);
