@@ -56,6 +56,10 @@ SECTIONS
     __dtors_end = .;
     /* Ensure page-aligned segment size */
     . = ALIGN(0x1000);
+
+    __bin_start = .;
+     obj/kern/raw_bin.o (.rawdata)
+    __bin_end = .;
   }
 
   PROVIDE(edata = .);

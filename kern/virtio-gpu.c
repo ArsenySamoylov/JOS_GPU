@@ -626,11 +626,17 @@ test_draw() {
     rect_t rect = {100, 100, 30, 60};
     surface_fill_rect(&surface2, &rect, TEST_XRGB_BLUE);
 
+    struct font_t font;
+    load_font(&font);
+    surface_draw_text(&surface,  &font, "osdev", 200, 200);
+    surface_draw_text(&surface2, &font, "osdev", 200, 200);
+
     while(1) {
         surface_display(&surface);
         sleep(300);
         surface_display(&surface2);
         sleep(300);
+
     }
     return 0;
 }
