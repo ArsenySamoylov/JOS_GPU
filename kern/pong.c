@@ -354,7 +354,6 @@ static enum Key get_last_keyboard_key()
     
 int
 pong() {
-    cprintf("i am here\n");
     int quit = 0;
     int result = 0;
 
