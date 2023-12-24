@@ -61,7 +61,7 @@ surface_fill_rect(struct surface_t *surface, const rect_t *rect, uint32_t color)
 void
 load_font(struct font_t *font);
 
-void
+uint32_t
 surface_draw_text(struct surface_t *surface, struct font_t *font, const char *str, uint32_t x, uint32_t y);
 
 void

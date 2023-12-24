@@ -78,13 +78,15 @@ surface_draw_character(struct surface_t *surface, struct font_t *font, char ch, 
     }
 }
 
-void
+uint32_t
 surface_draw_text(struct surface_t *surface, struct font_t *font, const char *str, uint32_t x, uint32_t y) {
     while (*str) {
         surface_draw_character(surface, font, *str, x, y);
         x += font->char_width;
         str++;
     }
+
+    return x;
 }
 
 void

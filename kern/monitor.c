@@ -71,9 +71,14 @@ int mon_font(int argc, char **argv, struct Trapframe *tf){
     
     struct font_t* font = get_main_font();
 
-    struct surface_t* main_srf_ptr = get_main_surface(); 
-    surface_clear(main_srf_ptr, XRGB_DEFAULT_COLOR);
-    surface_draw_text(main_srf_ptr, font, argv[1], 200, 200);
+    struct surface_t* main_srf_ptr = get_main_surface();
+    surface_clear(main_srf_ptr, XRGB_DEFAULT_COLOR); 
+
+    uint32_t pos = 0;
+    for (int i = 1; i < argc; ++i) {
+        pos = surface_draw_text(main_srf_ptr, font, argv[i], pos, 0);
+        pos += font->char_width; // for space
+    }
 
     surface_display(main_srf_ptr);
     return 0;
