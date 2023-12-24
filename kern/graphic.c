@@ -32,7 +32,7 @@ surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, u
 
 // SDL_FillRect
 void
-surface_fill_rect(struct surface_t *surface, const struct virtio_gpu_rect *rect, uint32_t color) {
+surface_fill_rect(struct surface_t *surface, const rect_t *rect, uint32_t color) {
     for (int y = rect->y; y < rect->y + rect->height; ++y) {
         for (int x = rect->x; x < rect->x + rect->width; ++x) {
             surface->backbuf[y * surface->width + x] = color;
@@ -73,6 +73,13 @@ surface_draw_text(struct surface_t *surface, struct font_t *font, const char *st
         x += font->char_width;
         str++;
     }
+}
+
+void
+surface_clear(struct surface_t *surface, uint32_t color) {
+    rect_t whole_rect = {0, 0, surface->width, surface->height};
+
+    surface_fill_rect(surface, &whole_rect, color);
 }
 
 void

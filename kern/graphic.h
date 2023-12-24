@@ -10,9 +10,10 @@
 #define MAX_WINDOW_WIDTH  640
 #define MAX_WINDOW_HEIGHT 480
 
-#define TEST_XRGB_WHITE 0xffffffff
-#define TEST_XRGB_BLUE  0xff2200FF
-#define TEST_XRGB_RED   0x0000ff00
+#define TEST_XRGB_WHITE   0xffffffff
+#define TEST_XRGB_BLUE    0xff2200FF
+#define TEST_XRGB_RED     0x0000ff00
+#define TEST_XRGB_BLACK   0x00000000
 
 struct surface_t {
     uint32_t resource_id;
@@ -30,7 +31,7 @@ void surface_display(struct surface_t *surface);
 void surface_update_rect(struct surface_t *surface, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 void surface_destroy(struct surface_t *surface);
 
-typedef struct virtio_gpu_rect rect_t; // somehow it doesn't work...
+typedef struct virtio_gpu_rect rect_t;
 
 struct font_t {
     uint32_t char_width;
@@ -59,6 +60,9 @@ load_font(struct font_t *font);
 
 void
 surface_draw_text(struct surface_t *surface, struct font_t *font, const char *str, uint32_t x, uint32_t y);
+
+void
+surface_clear(struct surface_t *surface, uint32_t color);
 
 void sleep(uint32_t ms);
 uint64_t current_ms();
