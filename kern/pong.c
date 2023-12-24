@@ -376,6 +376,7 @@ pong() {
         surface_display(&game_info.screen);
 
         int64_t temp = next_game_tick;
+        (void) temp;
         next_game_tick += 15 * delay;
 
         int64_t sleep_time = (next_game_tick - (int64_t)current_ms()) / delay;
