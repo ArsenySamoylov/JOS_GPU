@@ -123,7 +123,7 @@ InitGraphics (
   for (UINT32 Mode = 0; Mode < MaxMode; Mode++)
     {
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Mode_info_ptr = NULL;
-    UINTN Size_of_info = {};
+    UINTN Size_of_info = 0;
 
     Status = GraphicsOutput->QueryMode(GraphicsOutput, Mode, &Size_of_info, &Mode_info_ptr);
     if (EFI_ERROR (Status)) {
