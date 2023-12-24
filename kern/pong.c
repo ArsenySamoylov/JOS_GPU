@@ -339,19 +339,19 @@ get_keyboard_key() {
     return KEY_UNKNOWN;
 }
 
-static enum Key get_last_keyboard_key()
-    {
+static enum Key
+get_last_keyboard_key() {
     enum Key keyboard_key = KEY_UNKNOWN;
     enum Key temp_key = get_keyboard_key();
 
-    while(temp_key != KEY_EMPTY) {
+    while (temp_key != KEY_EMPTY) {
         keyboard_key = temp_key;
         temp_key = get_keyboard_key();
-        }   
+    }
 
     return keyboard_key;
-    }
-    
+}
+
 int
 pong() {
     int quit = 0;
@@ -359,6 +359,7 @@ pong() {
 
     // Initialize the ball position data.
     init_game();
+    struct font_t *font = get_main_font();
 
     // render loop
     while (quit == 0) {
@@ -368,9 +369,19 @@ pong() {
         rect_t screen_rect = {.x = 0, .y = 0, .height = game_info.screen.height, .width = game_info.screen.width};
         surface_fill_rect(&game_info.screen, &screen_rect, 0x00000000);
         draw_number(&game_info.screen, game_info.screen.height / 2 - default_segment_height / 2, 10, game_info.score[0]);
-        draw_number(&game_info.screen, game_info.screen.height / 2 + 7 * default_segment_height /2, 10, game_info.score[1]);
+        draw_number(&game_info.screen, game_info.screen.height / 2 + 7 * default_segment_height / 2, 10, game_info.score[1]);
 
         result = check_score(game_info.score);
+        if (result == 1) {
+            surface_draw_text(&game_info.screen, font, "You lose!", game_info.screen.height / 2, game_info.screen.width / 2);
+        } else if (result == 2) {
+            surface_draw_text(&game_info.screen, font, "You win!", game_info.screen.height / 2, game_info.screen.width / 2);
+        }
+        if (result) {
+            surface_display(&game_info.screen);
+            quit = 1;
+            sleep(500);
+        }
         // if either player wins, change to game over state
 
         enum Key keyboard_key = get_last_keyboard_key();
@@ -392,7 +403,7 @@ pong() {
         surface_display(&game_info.screen);
 
         int64_t temp = next_game_tick;
-        (void) temp;
+        (void)temp;
         next_game_tick += 15 * delay;
 
         int64_t sleep_time = (next_game_tick - (int64_t)current_ms()) / delay;
@@ -401,7 +412,6 @@ pong() {
             sleep(sleep_time);
         }
         // cprintf("fps %ld\n", 1000 / ((int64_t)current_ms() - temp));
-
     }
     surface_destroy(&game_info.screen);
     return 0;
