@@ -47,6 +47,7 @@ static struct game_data_t {
 } game_info;
 
 enum Key {
+    KEY_EMPTY,
     KEY_UNKNOWN,
     KEY_ESC = '[',
     KEY_UP = 'A',
@@ -324,6 +325,9 @@ static enum Key
 get_keyboard_key() {
     int key = cons_getc();
 
+    if (key == 0)
+        return KEY_EMPTY;
+
     if (key == KEY_ESC) {
         key = cons_getc();
         if (key >= KEY_UP && key <= KEY_LEFT) {
@@ -335,6 +339,19 @@ get_keyboard_key() {
     return KEY_UNKNOWN;
 }
 
+static enum Key get_last_keyboard_key()
+    {
+    enum Key keyboard_key = KEY_UNKNOWN;
+    enum Key temp_key = get_keyboard_key();
+
+    while(temp_key != KEY_EMPTY) {
+        keyboard_key = temp_key;
+        temp_key = get_keyboard_key();
+        }   
+
+    return keyboard_key;
+    }
+    
 int
 pong() {
     cprintf("i am here\n");
@@ -357,7 +374,7 @@ pong() {
         result = check_score(game_info.score);
         // if either player wins, change to game over state
 
-        enum Key keyboard_key = get_keyboard_key();
+        enum Key keyboard_key = get_last_keyboard_key();
 
         if (keyboard_key == KEY_SPACE) {
             quit = 1;
