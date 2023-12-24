@@ -15,6 +15,8 @@
 #define TEST_XRGB_RED     0x0000ff00
 #define TEST_XRGB_BLACK   0x00000000
 
+#define XRGB_DEFAULT_COLOR TEST_XRGB_BLACK
+
 struct surface_t {
     uint32_t resource_id;
 
@@ -47,6 +49,7 @@ struct vector {
 
 
 struct surface_t* get_main_surface();
+struct font_t*    get_main_font();
 
 void
 surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, uint32_t color);

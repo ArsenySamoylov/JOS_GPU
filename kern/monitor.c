@@ -68,11 +68,12 @@ int mon_font(int argc, char **argv, struct Trapframe *tf){
     }
 
     cprintf("Drawing '%s'\n", argv[1]);
-    struct font_t font;
-    load_font(&font);
+    
+    struct font_t* font = get_main_font();
 
     struct surface_t* main_srf_ptr = get_main_surface(); 
-    surface_draw_text(main_srf_ptr,  &font, argv[1], 200, 200);
+    surface_clear(main_srf_ptr, XRGB_DEFAULT_COLOR);
+    surface_draw_text(main_srf_ptr, font, argv[1], 200, 200);
 
     surface_display(main_srf_ptr);
     return 0;

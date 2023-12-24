@@ -14,11 +14,23 @@ struct surface_t* get_main_surface() {
 
     if (!is_init) {
         surface_init(&main_surface, gpu.screen_w, gpu.screen_h);
+        // is_init = true; // WTF? why is not working
     }
 
     return &main_surface;
 }
 
+struct font_t* get_main_font() {
+    static struct font_t font;
+    static bool is_loaded = false;
+    
+    if (!is_loaded) {
+        load_font(&font);
+        // is_loaded = true; // WTF? why is not working
+    }
+
+    return &font;   
+}
 void
 surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, uint32_t color) {
     for (int i = pos.y - r; i <= pos.y + r; i++) {
