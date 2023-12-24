@@ -47,6 +47,16 @@ struct vector {
     uint64_t y;
 };
 
+enum Key {
+    KEY_EMPTY,
+    KEY_UNKNOWN,
+    KEY_ESC = '[',
+    KEY_UP = 'A',
+    KEY_DOWN,
+    KEY_RIGHT,
+    KEY_LEFT,
+    KEY_SPACE = 32,
+};
 
 struct surface_t* get_main_surface();
 struct font_t*    get_main_font();
@@ -69,3 +79,6 @@ surface_clear(struct surface_t *surface, uint32_t color);
 
 void sleep(uint32_t ms);
 uint64_t current_ms();
+
+enum Key get_keyboard_key();
+enum Key get_last_keyboard_key();

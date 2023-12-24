@@ -2,6 +2,7 @@
 #include <inc/x86.h>
 #include <inc/stdio.h>
 #include "timer.h"
+#include "console.h"
 
 extern char __bin_start[];
 extern char __bin_end[];
@@ -113,4 +114,35 @@ uint64_t current_ms() {
     }
 
     return read_tsc() / cpu_freq_ms;
+}
+
+enum Key
+get_keyboard_key() {
+    int key = cons_getc();
+
+    if (key == 0)
+        return KEY_EMPTY;
+
+    if (key == KEY_ESC) {
+        key = cons_getc();
+        if (key >= KEY_UP && key <= KEY_LEFT) {
+            return key;
+        }
+    } else if (key == KEY_SPACE) {
+        return key;
+    }
+    return KEY_UNKNOWN;
+}
+
+enum Key
+get_last_keyboard_key() {
+    enum Key keyboard_key = KEY_UNKNOWN;
+    enum Key temp_key = get_keyboard_key();
+
+    while(temp_key != KEY_EMPTY) {
+        keyboard_key = temp_key;
+        temp_key = get_keyboard_key();
+        }   
+
+    return keyboard_key;
 }
