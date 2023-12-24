@@ -114,6 +114,8 @@ int mon_example(int argc, char **argv, struct Trapframe *tf) {
     surface_draw_text(&surface, &font, "END OF DEMO", 200, 200);
     surface_display(&surface);
     
+    surface_clear(&surface,  XRGB_DEFAULT_COLOR);
+    surface_clear(&surface2, XRGB_DEFAULT_COLOR);
     return 0;
 }
 
