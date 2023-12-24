@@ -78,11 +78,11 @@ int mon_font(int argc, char **argv, struct Trapframe *tf){
     surface_display(main_srf_ptr);
     return 0;
 }
+   
+struct surface_t surface = {};
+struct surface_t surface2 = {};
 
-int mon_example(int argc, char **argv, struct Trapframe *tf) {
-    struct surface_t surface = {};
-    struct surface_t surface2 = {};
-    
+int mon_example(int argc, char **argv, struct Trapframe *tf) {    
     surface_init(&surface, gpu.screen_w, gpu.screen_h);
     surface_init(&surface2, gpu.screen_w, gpu.screen_h);
 
@@ -94,18 +94,21 @@ int mon_example(int argc, char **argv, struct Trapframe *tf) {
 
     struct font_t font;
     load_font(&font);
+
     surface_draw_text(&surface,  &font, "osdev", 200, 200);
     surface_draw_text(&surface2, &font, "osdev", 200, 200);
 
-    while(1) {
+    for (int i = 0; i < 10; i++) {
         surface_display(&surface);
         sleep(300);
         surface_display(&surface2);
         sleep(300);
-
     }
+
+    surface_clear(&surface, XRGB_DEFAULT_COLOR);
+    surface_draw_text(&surface, &font, "END OF DEMO", 200, 200);
+    surface_display(&surface);
     
-    return 0;
     return 0;
 }
 
