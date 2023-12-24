@@ -7,6 +7,8 @@
 #include <inc/string.h>
 #include "graphic.h"
 
+bool VIRTIO_DEBUG_INFO = false;
+
 struct virtio_gpu_device_t gpu;
 
 void
@@ -414,9 +416,10 @@ resource_create_2d(struct surface_t *surface) {
     send_and_recieve(&gpu.controlq, &resource_2d, sizeof(resource_2d), &res, sizeof(res));
 
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
-        cprintf("Success 2d resource created\n");
+        if (VIRTIO_DEBUG_INFO)
+            cprintf("Success 2d resource created\n");
     } else {
-        cprintf("Res type %s\n", virtio_strerror(res.type));
+        cprintf("%s: Res type %s\n", __func__, virtio_strerror(res.type));
         return 1;
     }
     return 0;
@@ -452,9 +455,10 @@ attach_backing(struct surface_t *surface) {
                      &res, sizeof(res));
 
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
-        cprintf("Success attach backing\n");
+        if (VIRTIO_DEBUG_INFO)
+            cprintf("Success attach backing\n");
     } else {
-        cprintf("Res error %s\n", virtio_strerror(res.type));
+        cprintf("%s: Res error %s\n", __func__, virtio_strerror(res.type));
     }
     return 0;
 }
@@ -471,9 +475,10 @@ detach_backing(uint32_t resource_id) {
                         &res, sizeof(res));
 
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
-        cprintf("Success dettach backing\n");
+        if (VIRTIO_DEBUG_INFO)
+            cprintf("Success dettach backing\n");
     } else {
-        cprintf("Res error %s\n", virtio_strerror(res.type));
+        cprintf("%s: Res error %s\n", __func__, virtio_strerror(res.type));
     }
     return 0;
 }
@@ -491,9 +496,10 @@ static int resource_unref(uint32_t resource_id)
 
 
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
-        cprintf("Success resource unref\n");
+        if (VIRTIO_DEBUG_INFO)
+            cprintf("Success resource unref\n");
     } else {
-        cprintf("Res error %s\n", virtio_strerror(res.type));
+        cprintf("%s: Res error %s\n", __func__, virtio_strerror(res.type));
     }
     return 0;
 }
@@ -518,10 +524,11 @@ set_scanout(struct surface_t *surface) {
                      &res, sizeof(res));
 
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
-        cprintf("Success setting scanout\n");
+        if (VIRTIO_DEBUG_INFO)
+            cprintf("Success setting scanout\n");
         return 0;
     } else {
-        cprintf("Res type %s\n", virtio_strerror(res.type));
+        cprintf("%s: Res type %s\n", __func__, virtio_strerror(res.type));
     }
     return 1;
 }
@@ -539,10 +546,11 @@ transfer_to_host_2D(struct surface_t *surface, rect_t *rect) {
                      &res, sizeof(res));
 
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
-        // cprintf("Transfer to host 2D completed\n");
+        if (VIRTIO_DEBUG_INFO)
+            cprintf("Transfer to host 2D completed\n");
         return 0;
     } else {
-        cprintf("Res type %s\n", virtio_strerror(res.type));
+        cprintf("%s: Res type %s\n", __func__, virtio_strerror(res.type));
     }
     return 1;
 }
@@ -561,10 +569,11 @@ flush(struct surface_t *surface, rect_t *rect) {
                      &res, sizeof(res));
 
     if (res.type == VIRTIO_GPU_RESP_OK_NODATA) {
-        // cprintf("Flush completed\n");
+        if (VIRTIO_DEBUG_INFO)
+            cprintf("Flush completed\n");
         return 0;
     } else {
-        cprintf("Res type %s\n", virtio_strerror(res.type));
+        cprintf("%s: Res type %s\n", __func__, virtio_strerror(res.type));
     }
     return 1;
 }
