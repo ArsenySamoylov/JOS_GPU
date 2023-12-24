@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 #include <inc/assert.h>
+
+#include "virtio-gpu.h"
 #include "virtio-queue.h"
 #include "font.h"
 
@@ -41,6 +43,9 @@ struct vector {
     uint64_t x;
     uint64_t y;
 };
+
+
+struct surface_t* get_main_surface();
 
 void
 surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, uint32_t color);

@@ -141,3 +141,5 @@ struct virtio_gpu_device_t {
 
     uint32_t last_scanout_id;
 };
+
+extern struct virtio_gpu_device_t gpu;

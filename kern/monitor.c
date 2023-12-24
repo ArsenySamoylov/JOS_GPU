@@ -18,18 +18,17 @@
 #include <kern/pmap.h>
 #include <kern/trap.h>
 
+#include <kern/pong.h>
+#include <kern/graphic.h>
+
 #define WHITESPACE "\t\r\n "
 #define MAXARGS    16
 
 /* Functions implementing monitor commands */
 int mon_help(int argc, char **argv, struct Trapframe *tf);
-int mon_kerninfo(int argc, char **argv, struct Trapframe *tf);
-int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
-int mon_dumpcmos(int argc, char **argv, struct Trapframe *tf);
-int mon_start(int argc, char **argv, struct Trapframe *tf);
-int mon_stop(int argc, char **argv, struct Trapframe *tf);
-int mon_frequency(int argc, char **argv, struct Trapframe *tf);
-int mon_memory(int argc, char **argv, struct Trapframe *tf);
+int mon_pong(int argc, char **argv, struct Trapframe *tf);
+int mon_font(int argc, char **argv, struct Trapframe *tf);
+int mon_example(int argc, char **argv, struct Trapframe *tf);
 
 struct Command {
     const char *name;
@@ -39,15 +38,12 @@ struct Command {
 };
 
 static struct Command commands[] = {
-        {"help", "Display this list of commands", mon_help},
-        {"kerninfo", "Display information about the kernel", mon_kerninfo},
-        {"backtrace", "Print stack backtrace", mon_backtrace},
-        {"dumpcmos", "Display CMOS contents", mon_dumpcmos},
-        {"timer_start", "Start timer", mon_start},
-        {"timer_stop", "Stop timer", mon_stop},
-        {"timer_freq", "Get timer frequency", mon_frequency},
-        {"memory", "Display allocated memory pages", mon_memory},
+        {"help",    "Display this list of commands", mon_help},
+        {"pong",    "Start playing pong",            mon_pong},
+        {"font",    "Display string on screen",      mon_font},
+        {"example", "Best example",                  mon_example},
 };
+
 #define NCOMMANDS (sizeof(commands) / sizeof(commands[0]))
 
 /* Implementations of basic kernel monitor commands */
@@ -60,109 +56,55 @@ mon_help(int argc, char **argv, struct Trapframe *tf) {
 }
 
 int
-mon_kerninfo(int argc, char **argv, struct Trapframe *tf) {
-    extern char _head64[], entry[], etext[], edata[], end[];
+mon_pong(int argc, char **argv, struct Trapframe *tf) {
+    cprintf("starting pong\n");
+    return pong();
+}    
 
-    cprintf("Special kernel symbols:\n");
-    cprintf("  _head64 %16lx (virt)  %16lx (phys)\n", (unsigned long)_head64, (unsigned long)_head64);
-    cprintf("  entry   %16lx (virt)  %16lx (phys)\n", (unsigned long)entry, (unsigned long)entry - KERN_BASE_ADDR);
-    cprintf("  etext   %16lx (virt)  %16lx (phys)\n", (unsigned long)etext, (unsigned long)etext - KERN_BASE_ADDR);
-    cprintf("  edata   %16lx (virt)  %16lx (phys)\n", (unsigned long)edata, (unsigned long)edata - KERN_BASE_ADDR);
-    cprintf("  end     %16lx (virt)  %16lx (phys)\n", (unsigned long)end, (unsigned long)end - KERN_BASE_ADDR);
-    cprintf("Kernel executable memory footprint: %luKB\n", (unsigned long)ROUNDUP(end - entry, 1024) / 1024);
-    return 0;
-}
-
-int
-mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
-    uint64_t rbp = read_rbp();
-    uint64_t rip = read_rip();
-
-    cprintf("Stack backtrace:\n");
-
-    while (true)
-        {
-        struct Ripdebuginfo caller_info;
-        debuginfo_rip(rip, &caller_info);
-
-        cprintf("  rbp %016lx rip %016lx\n", rbp, rip);
-        cprintf ("    %s:%d: %*s+%ld\n", 
-                caller_info.rip_file, 
-                caller_info.rip_line, 
-                caller_info.rip_fn_namelen, caller_info.rip_fn_name,
-                rip - caller_info.rip_fn_addr);
-
-        if (!rbp)
-            break;
-
-        rip = *(((uint64_t*) rbp) + 1);
-        rbp = *((uint64_t*) rbp);
-        }
-
-    return 0;
-}
-
-/* Implement timer_start (mon_start), timer_stop (mon_stop), timer_freq (mon_frequency) commands. */
-// LAB 5: Your code here:
-
-int
-mon_start(int argc, char **argv, struct Trapframe *tf) {
-    if (argc != 2) {
-        cprintf("Pass only ONE argument: timer name\n");
+int mon_font(int argc, char **argv, struct Trapframe *tf){
+    if(argc < 2){
+        cprintf("Enter string to display\nExiting\n");
         return 0;
     }
 
-    timer_start(argv[1]);
+    cprintf("Drawing '%s'\n", argv[1]);
+    struct font_t font;
+    load_font(&font);
+
+    struct surface_t* main_srf_ptr = get_main_surface(); 
+    surface_draw_text(main_srf_ptr,  &font, argv[1], 200, 200);
+
+    surface_display(main_srf_ptr);
     return 0;
 }
 
-int
-mon_stop(int argc, char **argv, struct Trapframe *tf) {
-    timer_stop();
-    return 0;
-}
+int mon_example(int argc, char **argv, struct Trapframe *tf) {
+    struct surface_t surface = {};
+    struct surface_t surface2 = {};
+    
+    surface_init(&surface, gpu.screen_w, gpu.screen_h);
+    surface_init(&surface2, gpu.screen_w, gpu.screen_h);
 
-int
-mon_frequency(int argc, char **argv, struct Trapframe *tf) {
-    if (argc != 2) {
-        cprintf("Pass only ONE argument: timer name\n");
-        return 0;
-    }
+    struct vector pos = {.x = 50, .y = 50};
+    surface_draw_circle(&surface, pos, 50, TEST_XRGB_RED);
 
-    timer_cpu_frequency(argv[1]);
-    return 0;
-}
+    rect_t rect = {100, 100, 30, 60};
+    surface_fill_rect(&surface2, &rect, TEST_XRGB_BLUE);
 
-// LAB 6: Your code here
-/* Implement memory (mon_memory) commands. */
-int
-mon_memory(int argc, char **argv, struct Trapframe *tf) {
-    dump_memory_lists();
-    return 0;
-}
+    struct font_t font;
+    load_font(&font);
+    surface_draw_text(&surface,  &font, "osdev", 200, 200);
+    surface_draw_text(&surface2, &font, "osdev", 200, 200);
 
-// LAB 4: Your code here
-int
-mon_dumpcmos(int argc, char **argv, struct Trapframe *tf) {
-    // Dump CMOS memory in the following format:
-    // 00: 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF
-    // 10: 00 ..
-    // Make sure you understand the values read.
-    // Hint: Use cmos_read8()/cmos_write8() functions.
-    // LAB 4: Your code here
+    while(1) {
+        surface_display(&surface);
+        sleep(300);
+        surface_display(&surface2);
+        sleep(300);
 
-    for (int i = 0; i < CMOS_SIZE; i += 0x10) {
-         cprintf("%02x:", i);
-         for (int j = 0; j < 0x10; ++j) {
-            if (i+j >= CMOS_SIZE)
-                break;
-
-            cprintf(" %02x", cmos_read8(i+j));
-            }
-            
-         cprintf("\n");
     }
     
+    return 0;
     return 0;
 }
 

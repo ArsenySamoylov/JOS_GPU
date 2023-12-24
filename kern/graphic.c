@@ -8,6 +8,17 @@ extern char __bin_end[];
 
 static uint64_t cpu_freq_ms = 0;
 
+struct surface_t* get_main_surface() {
+    static struct surface_t main_surface = {};    
+    static bool is_init = false;
+
+    if (!is_init) {
+        surface_init(&main_surface, gpu.screen_w, gpu.screen_h);
+    }
+
+    return &main_surface;
+}
+
 void
 surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, uint32_t color) {
     for (int i = pos.y - r; i <= pos.y + r; i++) {

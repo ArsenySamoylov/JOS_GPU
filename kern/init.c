@@ -20,7 +20,6 @@
 #include <kern/traceopt.h>
 #include <kern/pci.h>
 #include <kern/virtio-gpu.h>
-#include <kern/pong.h>
 
 void
 timers_init(void) {
@@ -165,33 +164,7 @@ i386_init(void) {
     // GPU Lab
     pci_init();
 
-    cprintf("starting pong\n");
-    pong();
-#ifdef CONFIG_KSPACE
-    /* Touch all you want */
-    // ENV_CREATE_KERNEL_TYPE(prog_test1);
-    // ENV_CREATE_KERNEL_TYPE(prog_test2);
-    // ENV_CREATE_KERNEL_TYPE(prog_test3);
-    // ENV_CREATE_KERNEL_TYPE(prog_test4);
-    ENV_CREATE_KERNEL_TYPE(prog_test5);
-    ENV_CREATE_KERNEL_TYPE(prog_test6);
-#else
-
-#if LAB >= 10
-    ENV_CREATE(fs_fs, ENV_TYPE_FS);
-#endif
-
-#if defined(TEST)
-    /* Don't touch -- used by grading script! */
-    ENV_CREATE(TEST, ENV_TYPE_USER);
-#else
-    /* Touch all you want. */
-    ENV_CREATE(user_hello, ENV_TYPE_USER);
-#endif /* TEST* */
-#endif
-
-    /* Schedule and run the first user environment! */
-    sched_yield();
+    monitor(NULL);
 }
 
 /* Variable panicstr contains argument to first call to panic; used as flag
