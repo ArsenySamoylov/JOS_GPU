@@ -100,7 +100,7 @@ int mon_example(int argc, char **argv, struct Trapframe *tf) {
     struct font_t font;
     load_font(&font);
 
-    surface_draw_text(&surface,  &font, "osdev", 200, 200);
+    surface_draw_text(&surface,  &font, "osdev isn't dead", 200, 200);
     surface_draw_text(&surface2, &font, "osdev", 200, 200);
 
     for (int i = 0; i < 10; i++) {
