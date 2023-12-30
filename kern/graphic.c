@@ -8,8 +8,9 @@ extern char __bin_end[];
 
 static uint64_t cpu_freq_ms = 0;
 
-struct surface_t* get_main_surface() {
-    static struct surface_t main_surface = {};    
+struct surface_t *
+get_main_surface() {
+    static struct surface_t main_surface = {};
     static bool is_init = false;
 
     if (!is_init) {
@@ -20,16 +21,17 @@ struct surface_t* get_main_surface() {
     return &main_surface;
 }
 
-struct font_t* get_main_font() {
+struct font_t *
+get_main_font() {
     static struct font_t font;
     static bool is_loaded = false;
-    
+
     if (!is_loaded) {
         load_font(&font);
         // is_loaded = true; // WTF? why is not working
     }
 
-    return &font;   
+    return &font;
 }
 void
 surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, uint32_t color) {
@@ -53,14 +55,31 @@ surface_fill_rect(struct surface_t *surface, const rect_t *rect, uint32_t color)
 }
 
 void
+surface_fill_texture(struct surface_t *surface, const rect_t *rect, uint32_t *texture, int y_mirror) {
+    if (y_mirror) {
+        for (int y = rect->y; y < rect->y + rect->height; ++y) {
+            for (int x = rect->x; x < rect->x + rect->width; ++x) {
+                surface->backbuf[y * surface->width + x] = texture[(y - rect->y) * rect->width + rect->width + rect->x - x];
+            }
+        }
+    } else {
+        for (int y = rect->y; y < rect->y + rect->height; ++y) {
+            for (int x = rect->x; x < rect->x + rect->width; ++x) {
+                surface->backbuf[y * surface->width + x] = texture[(y - rect->y) * rect->width + (x - rect->x)];
+            }
+        }
+    }
+}
+
+void
 load_font(struct font_t *font) {
-    struct font_header_t * header = (struct font_header_t *) __bin_start;
+    struct font_header_t *header = (struct font_header_t *)__bin_start;
     assert(header->magic == FONT_MAGIC_NUM);
 
     font->char_height = header->char_height;
-    font->char_width  = header->char_width;
+    font->char_width = header->char_width;
 
-    font->bitmaps = (struct xrgb_pixel *) (((char *)header) + sizeof(struct font_header_t));
+    font->bitmaps = (struct xrgb_pixel *)(((char *)header) + sizeof(struct font_header_t));
 }
 
 static void
@@ -105,11 +124,12 @@ sleep(uint32_t ms) {
     uint64_t target = read_tsc() + cpu_freq_ms * ms;
 
     while (read_tsc() < target) {
-        asm volatile ("pause");
+        asm volatile("pause");
     }
 }
 
-uint64_t current_ms() {
+uint64_t
+current_ms() {
     if (!cpu_freq_ms) {
         cpu_freq_ms = timer_for_schedule->get_cpu_freq() / 1000;
     }

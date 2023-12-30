@@ -10,10 +10,12 @@
 #define MAX_WINDOW_WIDTH  640
 #define MAX_WINDOW_HEIGHT 480
 
-#define TEST_XRGB_WHITE   0xffffffff
-#define TEST_XRGB_BLUE    0xff2200FF
-#define TEST_XRGB_RED     0x0000ff00
-#define TEST_XRGB_BLACK   0x00000000
+#define TEST_XRGB_WHITE     0xffffffff
+#define TEST_XRGB_BLUE      0xff2200FF
+#define TEST_XRGB_RED       0x0000ff00
+#define TEST_XRGB_BLACK     0x00000000
+#define TEST_XRGB_GREY      0x60606000
+#define TEST_XRGB_ORANGERED 0x4763FF00
 
 #define XRGB_DEFAULT_COLOR TEST_XRGB_BLACK
 
@@ -57,6 +59,9 @@ surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, u
 // SDL_FillRect
 void
 surface_fill_rect(struct surface_t *surface, const rect_t *rect, uint32_t color);
+
+void
+surface_fill_texture(struct surface_t *surface, const rect_t *rect, uint32_t *texture, int mirrored);
 
 void
 load_font(struct font_t *font);

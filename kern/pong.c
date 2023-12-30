@@ -1,416 +1,378 @@
 
 #include "pong.h"
+#include "pong-utilities.h"
+#include "graphic.h"
 #include <inc/stdio.h>
-#include "console.h"
 
 static int max_score = 9;
 static int paddle_width = 10;
 static int paddle_height = 50;
+static int paddle_padding = 20;
+static int net_offset = 30;
 static int ball_size = 10;
 static int player_paddle_speed = 10;
-static int64_t delay = 1000 * 1000;
-static int default_segment_width = 7;
-static int default_segment_height = 40;
-// first three is horizontal
-static char digit2seg[] = {
-        0b1111101, // 0
-        0b1010000, // 1
-        0b0110111, // 2
-        0b1010111, // 3
-        0b1011010, // 4
-        0b1001111, // 5
-        0b1101111, // 6
-        0b1010100, // 7
-        0b1111111, // 8
-        0b1011111, // 9
-};
+static int ai_paddle_speed = 5;
+static int frame_width = 2;
 
+extern char __assets_start[];
+extern char __assets_end[];
 
-typedef struct ball_s {
-    int x, y;     /* position on the screen */
-    int w, h;     // ball width and height
-    int v_x, v_y; /* movement vector */
-} ball_t;
+struct paddle;
+struct ball;
 
-typedef struct paddle {
+typedef void (*draw_func)(void *, struct surface_t *);
+typedef void (*move_func)(struct paddle *, struct ball *, struct surface_t *);
+
+typedef struct rectangle {
     int x, y;
     int w, h;
+    uint32_t color;
+    draw_func draw;
+    move_func move;
+} rectangle_t;
+
+typedef struct paddle {
+    rectangle_t rect;
+    int splash_frame;
+    int v_y;
 } paddle_t;
+
+typedef struct ball {
+    rectangle_t rect;
+    int v_x, v_y;
+} ball_t;
 
 
 static struct game_data_t {
     ball_t ball;
     paddle_t paddle[2];
-    int score[2];
+    rectangle_t net;
+    rectangle_t gates[2];
+    rectangle_t *objects[6];
+    int ndrawable;
+    int nmovable;
+    int ai_score;
+    int user_score;
     struct surface_t screen;
 
 } game_info;
 
-enum Key {
-    KEY_EMPTY,
-    KEY_UNKNOWN,
-    KEY_ESC = '[',
-    KEY_UP = 'A',
-    KEY_DOWN,
-    KEY_RIGHT,
-    KEY_LEFT,
-    KEY_SPACE = 32,
-};
+
+#define RECT2GPU_RECT(game_rect_name, gpu_rect_name)   \
+    rectangle_t *rect = (rectangle_t *)game_rect_name; \
+    struct virtio_gpu_rect gpu_rect_name = {.height = rect->h, .width = rect->w, .x = rect->x, .y = rect->y};
+
+static void
+draw_ball(void *ball_rect, struct surface_t *screen) {
+    RECT2GPU_RECT(ball_rect, ball);
+    surface_fill_rect(screen, &ball, rect->color);
+}
+
+static void
+draw_paddle(void *paddle_rect, struct surface_t *screen) {
+    RECT2GPU_RECT(paddle_rect, paddle);
+    surface_fill_rect(screen, &paddle, rect->color);
+    if (((paddle_t *)paddle_rect)->splash_frame != -1) {
+        draw_splash_frame(&game_info.screen, paddle.x + paddle.width, paddle.y, ((paddle_t *)paddle_rect)->splash_frame, 1);
+    }
+}
+
+static void
+draw_net(void *net_rect, struct surface_t *screen) {
+    RECT2GPU_RECT(net_rect, net);
+
+    for (int i = 0; i < screen->height / (net.height + net_offset) * 1.5; i++) {
+        surface_fill_rect(screen, &net, rect->color);
+        net.y += net_offset;
+    }
+}
+
+static void
+draw_gate(void *gate_rect, struct surface_t *screen) {
+    RECT2GPU_RECT(gate_rect, gate);
+    surface_fill_rect(screen, &gate, rect->color);
+}
 
 
 static void
-init_game() {
-    surface_init(&game_info.screen, MAX_WINDOW_WIDTH, MAX_WINDOW_HEIGHT);
-
-    game_info.ball.x = game_info.screen.width / 2;
-    game_info.ball.y = game_info.screen.height / 2;
-    game_info.ball.w = ball_size;
-    game_info.ball.h = ball_size;
-    game_info.ball.v_y = 1;
-    game_info.ball.v_x = 1;
-
-    game_info.paddle[0].x = 20;
-    game_info.paddle[0].y = game_info.screen.height / 2 - paddle_height;
-    game_info.paddle[0].w = paddle_width;
-    game_info.paddle[0].h = paddle_height;
-
-    game_info.paddle[1].x = game_info.screen.width - 20 - paddle_width;
-    game_info.paddle[1].y = game_info.screen.height / 2 - paddle_height;
-    game_info.paddle[1].w = paddle_width;
-    game_info.paddle[1].h = paddle_height;
+move_dummy(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
 }
 
-void
-draw_number(struct surface_t *screen, uint64_t x, uint64_t y, int n) {
-    rect_t segment;
 
-    if (sizeof(digit2seg) < n) {
-        return;
+static void
+move_paddle(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
+    paddle_t *paddle = paddle_array + 1;
+    paddle->rect.y += paddle->v_y;
+    if (paddle->rect.y >= screen->height - paddle->rect.h) {
+        paddle->rect.y = screen->height - paddle->rect.h;
     }
-    char nseg = digit2seg[n];
-    uint32_t padding = default_segment_width / 2;
-
-    segment.x = x + padding;
-    segment.y = y;
-    segment.width = default_segment_height;
-    segment.height = default_segment_width;
-    for (int i = 0; i < 3; ++i) {
-        if ((nseg >> i) & 1) {
-            surface_fill_rect(screen, &segment, TEST_XRGB_WHITE);
-        }
-        segment.y += default_segment_height;
+    if (paddle->rect.y <= 0) {
+        paddle->rect.y = 0;
     }
-
-
-    segment.height = default_segment_height;
-    segment.width = default_segment_width;
-
-    for (int i = 3; i < 7; ++i) {
-        if (i == 3) {
-            segment.x = x;
-            segment.y = y;
-        } else if (i == 4) {
-            segment.x = x + default_segment_height;
-            segment.y = y;
-        } else if (i == 5) {
-            segment.x = x;
-            segment.y = y + default_segment_height;
-        } else if (i == 6) {
-            segment.x = x + default_segment_height;
-            segment.y = y + default_segment_height;
-        }
-        segment.y += padding;
-        if ((nseg >> i) & 1) {
-            surface_fill_rect(screen, &segment, TEST_XRGB_WHITE);
+    if (paddle->splash_frame != -1) {
+        paddle->splash_frame += 1;
+        if (paddle->splash_frame == get_splash_animation_frames()) {
+            paddle->splash_frame = -1;
         }
     }
 }
 
-int
-check_score(int *score) {
-    for (int i = 0; i < 2; i++) {
-        if (score[i] == max_score) {
-            score[0] = 0;
-            score[1] = 0;
+static void
+move_paddle_ai(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
+    paddle_t *paddle = paddle_array;
+    int center = paddle->rect.y + paddle_height / 2;
+    int screen_center = screen->height / 2 - paddle_height / 2;
+    int ball_speed = ball->v_y > 0 ? ball->v_y : -ball->v_y;
 
-            return i + 1;
+    if (ball->v_x > 0) {
+        // return to center position
+        if (center < screen_center - paddle_height / 2) {
+            paddle->rect.y += ball_speed;
+        } else if (center > screen_center + paddle_height / 2) {
+            paddle->rect.y -= ball_speed;
+        }
+    } else {
+        // ball moving down
+        if (ball->v_y > 0) {
+            if (ball->rect.y > center) {
+                paddle->rect.y += ball_speed;
+            } else {
+                paddle->rect.y -= ball_speed;
+            }
+        }
+        // ball moving up
+        if (ball->v_y < 0) {
+            if (ball->rect.y < center) {
+                paddle->rect.y -= ball_speed;
+            } else {
+                paddle->rect.y += ball_speed;
+            }
+        }
+        // ball moving stright across
+        if (ball->v_y == 0) {
+            if (ball->rect.y < center - paddle_height / 2) {
+                paddle->rect.y -= paddle->v_y;
+            } else if (ball->rect.y > center + paddle_height / 2) {
+                paddle->rect.y += paddle->v_y;
+            }
         }
     }
-    return 0;
+    if (paddle->rect.y <= 0) {
+        paddle->rect.y = 0;
+    } else if (paddle->rect.y >= screen->height - paddle->rect.h) {
+        paddle->rect.y = screen->height - paddle->rect.h;
+    }
+    if (paddle->splash_frame != -1) {
+        paddle->splash_frame += 1;
+        if (paddle->splash_frame == get_splash_animation_frames()) {
+            paddle->splash_frame = -1;
+        }
+    }
 }
 
 // if return value is 1 collision occured. if return is 0, no collision.
-int
-check_collision(ball_t *ball, paddle_t paddle) {
-    if (ball->x > paddle.x + paddle.w) {
+static int
+check_collision(ball_t *ball, paddle_t *paddle) {
+    if (ball->rect.x > paddle->rect.x + paddle->rect.w) {
         return 0;
     }
-    if (ball->x + ball->w < paddle.x) {
+    if (ball->rect.x + ball->rect.w < paddle->rect.x) {
         return 0;
     }
-    if (ball->y > paddle.y + paddle.h) {
+    if (ball->rect.y > paddle->rect.y + paddle->rect.h) {
         return 0;
     }
-    if (ball->y + ball->h < paddle.y) {
+    if (ball->rect.y + ball->rect.h < paddle->rect.y) {
         return 0;
     }
     return 1;
 }
 
+
 static void
-move_ball(ball_t *ball, int *score, struct surface_t *screen, paddle_t *paddle) {
-    ball->x += ball->v_x;
-    ball->y += ball->v_y;
+move_ball(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
+    ball->rect.x += ball->v_x;
+    ball->rect.y += ball->v_y;
 
-    /* Turn the ball around if it hits the edge of the screen. */
-    if (ball->x < 0) {
-        score[1] += 1;
-        init_game();
-    }
-
-    if (ball->x > screen->width - 10) {
-        score[0] += 1;
-        init_game();
-    }
-
-    if (ball->y < 0 || ball->y > screen->height - 10) {
+    if (ball->rect.y < 0 || ball->rect.y > screen->height - 10) {
         ball->v_y = -ball->v_y;
     }
     for (int i = 0; i < 2; i++) {
-        int collision = check_collision(ball, paddle[i]);
+        int collision = check_collision(ball, paddle_array + i);
         if (collision) {
-            // ball moving left
+            paddle_array[i].splash_frame = 0;
             if (ball->v_x < 0) {
-
                 ball->v_x -= 1;
             } else {
-
                 ball->v_x += 1;
             }
-            // change ball direction
+
             ball->v_x = -ball->v_x;
 
-            int hit_pos = (paddle[i].y + paddle[i].h) - ball->y;
+            int hit_pos = (paddle_array[i].rect.y + paddle_array[i].rect.h) - ball->rect.y;
 
             ball->v_y = 4 - hit_pos / 7;
-            // ball moving right
-            if (ball->v_x > 0) {
 
-                // teleport ball to avoid mutli collision glitch
-                if (ball->x < ball->w) {
-                    ball->x = ball->w;
-                }
-                // ball moving left
-            } else {
-                // teleport ball to avoid mutli collision glitch
-                if (ball->x > MAX_WINDOW_WIDTH - ball->w) {
-                    ball->x = MAX_WINDOW_WIDTH - ball->w;
-                }
+            if (ball->rect.x < ball->rect.w) {
+                ball->rect.x = ball->rect.w;
+            }
+            // ball moving left
+            else if (ball->rect.x > MAX_WINDOW_WIDTH - ball->rect.w) {
+                ball->rect.x = MAX_WINDOW_WIDTH - ball->rect.w;
             }
         }
     }
 }
 
+
 static void
-move_paddle_ai(ball_t *ball, struct surface_t *screen, paddle_t *paddle) {
-    int center = paddle[0].y + paddle_height / 2;
-    int screen_center = screen->height / 2 - paddle_height / 2;
-    int ball_speed = ball->v_y;
-
-    if (ball_speed < 0) {
-        ball_speed = -ball_speed;
-    }
-
-    if (ball->v_x > 0) {
-        // return to center position
-        if (center < screen_center) {
-            paddle[0].y += ball_speed;
-        } else {
-            paddle[0].y -= ball_speed;
-        }
-    } else {
-        // ball moving down
-        if (ball->v_y > 0) {
-            if (ball->y > center) {
-                paddle[0].y += ball_speed;
-            } else {
-                paddle[0].y -= ball_speed;
-            }
-        }
-        // ball moving up
-        if (ball->v_y < 0) {
-            if (ball->y < center) {
-                paddle[0].y -= ball_speed;
-            } else {
-                paddle[0].y += ball_speed;
-            }
-        }
-        // ball moving stright across
-        if (ball->v_y == 0) {
-            if (ball->y < center) {
-                paddle[0].y -= 5;
-            } else {
-                paddle[0].y += 5;
-            }
-        }
-    }
-    if (paddle[0].y <= 0) {
-        paddle[0].y = 0;
-    } else if (paddle[1].y >= screen->height - paddle[0].h) {
-        paddle[0].y = screen->height - paddle[0].h;
-    }
+ball_init(ball_t *ball, int x, int y) {
+    ball->rect.x = x;
+    ball->rect.y = y;
+    ball->rect.w = ball_size;
+    ball->rect.h = ball_size;
+    ball->v_y = 1;
+    ball->v_x = 1;
+    ball->rect.draw = draw_ball;
+    ball->rect.move = move_ball;
+    ball->rect.color = TEST_XRGB_WHITE;
 }
 
-static void
-move_paddle(struct surface_t *screen, paddle_t *paddle, enum Key direction) {
-    if (direction == KEY_DOWN) {
-        if (paddle[1].y >= screen->height - paddle[1].h) {
-            paddle[1].y = screen->height - paddle[1].h;
-        } else {
-            paddle[1].y += player_paddle_speed;
-        }
-    }
-    if (direction == KEY_UP) {
-        if (paddle[1].y <= 0) {
-            paddle[1].y = 0;
-        } else {
-            paddle[1].y -= player_paddle_speed;
-        }
-    }
+static inline void
+paddle_init(paddle_t *paddle, int x, int y, uint32_t color, move_func move) {
+    paddle->rect.x = x;
+    paddle->rect.y = y;
+    paddle->rect.w = paddle_width;
+    paddle->rect.h = paddle_height;
+    paddle->rect.draw = draw_paddle;
+    paddle->splash_frame = -1;
+    paddle->rect.move = move;
+    paddle->rect.color = color;
+}
+
+static inline void
+net_init(rectangle_t *net, int width) {
+    net->x = width / 2;
+    net->y = 20;
+    net->w = 5;
+    net->h = 15;
+    net->draw = draw_net;
+    net->color = TEST_XRGB_GREY;
 }
 
 
-static void
-draw_ball(struct surface_t *screen, ball_t *ball) {
-    struct virtio_gpu_rect ball_rect;
+static inline void
+gates_init(rectangle_t *gate, struct surface_t *screen) {
 
-    ball_rect.height = ball->h;
-    ball_rect.width = ball->w;
-    ball_rect.x = ball->x;
-    ball_rect.y = ball->y;
+    for (int i = 0; i < 2; ++i) {
+        gate[i].color = TEST_XRGB_WHITE;
+        gate[i].draw = draw_gate;
+        gate[i].y = 0;
+    }
+    gate->x = 0;
+    gate->w = frame_width;
+    gate->h = screen->width;
 
-    surface_fill_rect(screen, &ball_rect, TEST_XRGB_WHITE);
+    gate[1].x = screen->width - frame_width;
+    gate[1].w = frame_width;
+    gate[1].h = screen->width;
 }
 
 static void
-draw_paddle(struct surface_t *screen, paddle_t *paddle) {
+game_init() {
+    surface_init(&game_info.screen, MAX_WINDOW_WIDTH, MAX_WINDOW_HEIGHT);
 
-    struct virtio_gpu_rect paddle_rect;
+    ball_init(&game_info.ball, game_info.screen.width / 2, game_info.screen.height / 2);
 
-    for (int i = 0; i < 2; i++) {
-        paddle_rect.x = paddle[i].x;
-        paddle_rect.y = paddle[i].y;
-        paddle_rect.width = paddle[i].w;
-        paddle_rect.height = paddle[i].h;
+    paddle_init(&game_info.paddle[0], paddle_padding, game_info.screen.height / 2 - paddle_height, TEST_XRGB_ORANGERED, move_paddle_ai);
+    game_info.paddle[0].v_y = player_paddle_speed;
+    paddle_init(&game_info.paddle[1], game_info.screen.width - paddle_padding - paddle_width, game_info.screen.height / 2 - paddle_height, TEST_XRGB_WHITE, move_paddle);
+    game_info.paddle[1].v_y = ai_paddle_speed;
 
-        surface_fill_rect(screen, &paddle_rect, TEST_XRGB_WHITE);
-    }
+    net_init(&game_info.net, game_info.screen.width);
+    gates_init(game_info.gates, &game_info.screen);
+
+    game_info.objects[0] = (rectangle_t *)&game_info.paddle[0];
+    game_info.objects[1] = (rectangle_t *)&game_info.paddle[1];
+    game_info.objects[2] = (rectangle_t *)&game_info.ball;
+    game_info.objects[3] = (rectangle_t *)&game_info.net;
+    game_info.objects[4] = (rectangle_t *)&game_info.gates[0];
+    game_info.objects[5] = (rectangle_t *)&game_info.gates[1];
+
+    game_info.ndrawable = 6;
+    game_info.nmovable = 3;
 }
 
-static void
-draw_net(struct surface_t *screen) {
-    rect_t net;
-    net.x = screen->width / 2;
-    net.y = 20;
-    net.width = 5;
-    net.height = 15;
 
-    for (int i = 0; i < 15; i++) {
-        surface_fill_rect(screen, &net, TEST_XRGB_WHITE);
-        net.y += 30;
+static enum State
+check_game_over(struct game_data_t *info) {
+    struct font_t *font = get_main_font();
+    // check over all games
+    if (info->ai_score == max_score) {
+        surface_draw_text(&game_info.screen, font, "You lose!", game_info.screen.height / 2, game_info.screen.width / 2);
+    } else if (info->user_score == max_score) {
+        surface_draw_text(&game_info.screen, font, "You win!", game_info.screen.height / 2, game_info.screen.width / 2);
     }
-}
-
-static enum Key
-get_keyboard_key() {
-    int key = cons_getc();
-
-    if (key == 0)
-        return KEY_EMPTY;
-
-    if (key == KEY_ESC) {
-        key = cons_getc();
-        if (key >= KEY_UP && key <= KEY_LEFT) {
-            return key;
-        }
-    } else if (key == KEY_SPACE) {
-        return key;
+    if (info->user_score == max_score || info->ai_score == max_score) {
+        surface_display(&game_info.screen);
+        sleep(500);
+        return GAME_OVER;
     }
-    return KEY_UNKNOWN;
-}
-
-static enum Key
-get_last_keyboard_key() {
-    enum Key keyboard_key = KEY_UNKNOWN;
-    enum Key temp_key = get_keyboard_key();
-
-    while (temp_key != KEY_EMPTY) {
-        keyboard_key = temp_key;
-        temp_key = get_keyboard_key();
+    // check over one batch
+    if (info->ball.rect.x < 0) {
+        game_info.user_score += 1;
+        game_init();
     }
-
-    return keyboard_key;
+    if (info->ball.rect.x > info->screen.width - 10) {
+        game_info.ai_score += 1;
+        game_init();
+    }
+    return GAME_RUN;
 }
 
 int
-pong() {
-    int quit = 0;
-    int result = 0;
+pong(void) {
+    enum State state = GAME_RUN;
 
     // Initialize the ball position data.
-    init_game();
-    struct font_t *font = get_main_font();
+    game_init();
 
-    // render loop
-    while (quit == 0) {
+    while (state != GAME_OVER) {
         int64_t next_game_tick = current_ms();
         // draw background
 
-        rect_t screen_rect = {.x = 0, .y = 0, .height = game_info.screen.height, .width = game_info.screen.width};
-        surface_fill_rect(&game_info.screen, &screen_rect, 0x00000000);
-        draw_number(&game_info.screen, game_info.screen.height / 2 - default_segment_height / 2, 10, game_info.score[0]);
-        draw_number(&game_info.screen, game_info.screen.height / 2 + 7 * default_segment_height / 2, 10, game_info.score[1]);
+        surface_clear(&game_info.screen, TEST_XRGB_BLACK);
 
-        result = check_score(game_info.score);
-        if (result == 1) {
-            surface_draw_text(&game_info.screen, font, "You lose!", game_info.screen.height / 2, game_info.screen.width / 2);
-        } else if (result == 2) {
-            surface_draw_text(&game_info.screen, font, "You win!", game_info.screen.height / 2, game_info.screen.width / 2);
-        }
-        if (result) {
-            surface_display(&game_info.screen);
-            quit = 1;
-            sleep(500);
-        }
-        // if either player wins, change to game over state
+        draw_number(&game_info.screen, game_info.screen.height / 2, 10, game_info.ai_score);
+        draw_number(&game_info.screen, game_info.screen.height / 2 + 110, 10, game_info.user_score);
 
+        state = check_game_over(&game_info);
         enum Key keyboard_key = get_last_keyboard_key();
 
-        if (keyboard_key == KEY_SPACE) {
-            quit = 1;
+        switch (keyboard_key) {
+        case KEY_SPACE:
+            state = GAME_OVER;
+            break;
+        case KEY_UP:
+            game_info.paddle[1].v_y = -player_paddle_speed;
+            break;
+        case KEY_DOWN:
+            game_info.paddle[1].v_y = player_paddle_speed;
+            break;
+        case KEY_UNKNOWN:
+            game_info.paddle[1].v_y = 0;
+        default:
+            break;
         }
-        if (keyboard_key != KEY_UNKNOWN) {
-            move_paddle(&game_info.screen, game_info.paddle, keyboard_key);
+
+        for (int i = 0; i < game_info.nmovable; ++i) {
+            game_info.objects[i]->move(game_info.paddle, &game_info.ball, &game_info.screen);
         }
-
-        move_paddle_ai(&game_info.ball, &game_info.screen, game_info.paddle);
-        move_ball(&game_info.ball, game_info.score, &game_info.screen, game_info.paddle);
-
-        draw_net(&game_info.screen);
-        draw_paddle(&game_info.screen, game_info.paddle);
-        draw_ball(&game_info.screen, &game_info.ball);
-
+        for (int i = 0; i < game_info.ndrawable; ++i) {
+            game_info.objects[i]->draw(game_info.objects[i], &game_info.screen);
+        }
         surface_display(&game_info.screen);
-
-        int64_t temp = next_game_tick;
-        (void)temp;
-        next_game_tick += 15 * delay;
-
-        int64_t sleep_time = (next_game_tick - (int64_t)current_ms()) / delay;
-
-        if (sleep_time >= 0) {
-            sleep(sleep_time);
-        }
+        game_delay(next_game_tick);
         // cprintf("fps %ld\n", 1000 / ((int64_t)current_ms() - temp));
     }
     surface_destroy(&game_info.screen);

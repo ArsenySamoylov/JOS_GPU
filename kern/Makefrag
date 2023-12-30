@@ -37,10 +37,12 @@ KERN_SRCFILES := kern/bootstrap.S \
 			kern/uefiasm.S \
 			kern/spinlock.c \
 			kern/virtio-gpu.c \
+			kern/pong-utilities.c \
 			kern/pong.c \
 			kern/graphic.c \
 			kern/pci.c \
-			kern/raw_bin.S
+			kern/raw_bin.S \
+			kern/raw_asset.S
 
 ifeq ($(CONFIG_KSPACE),y)
 KERN_SRCFILES += kern/alloc.c
