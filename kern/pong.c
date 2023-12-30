@@ -4,24 +4,25 @@
 #include "graphic.h"
 #include <inc/stdio.h>
 
-static int max_score = 9;
+static int max_score = 2;
 static int paddle_width = 10;
 static int paddle_height = 50;
-static int paddle_padding = 20;
+static int paddle_padding = 30;
 static int net_offset = 30;
 static int ball_size = 10;
 static int player_paddle_speed = 10;
 static int ai_paddle_speed = 5;
 static int frame_width = 2;
 
-extern char __assets_start[];
-extern char __assets_end[];
-
-struct paddle;
-struct ball;
+struct game_data;
 
 typedef void (*draw_func)(void *, struct surface_t *);
-typedef void (*move_func)(struct paddle *, struct ball *, struct surface_t *);
+typedef void (*move_func)(struct game_data *);
+
+
+enum EffectType {
+    SPLASH,
+};
 
 typedef struct rectangle {
     int x, y;
@@ -33,7 +34,6 @@ typedef struct rectangle {
 
 typedef struct paddle {
     rectangle_t rect;
-    int splash_frame;
     int v_y;
 } paddle_t;
 
@@ -43,18 +43,27 @@ typedef struct ball {
 } ball_t;
 
 
-static struct game_data_t {
+typedef struct effect {
+    rectangle_t *traced_rect;
+    enum EffectType type;
+    int y_mirror;
+    int frame;
+    int enable;
+} effect_t;
+
+
+static struct game_data {
     ball_t ball;
     paddle_t paddle[2];
     rectangle_t net;
     rectangle_t gates[2];
-    rectangle_t *objects[6];
+    effect_t splash;
+    rectangle_t *objects[8];
     int ndrawable;
     int nmovable;
     int ai_score;
     int user_score;
     struct surface_t screen;
-
 } game_info;
 
 
@@ -72,9 +81,6 @@ static void
 draw_paddle(void *paddle_rect, struct surface_t *screen) {
     RECT2GPU_RECT(paddle_rect, paddle);
     surface_fill_rect(screen, &paddle, rect->color);
-    if (((paddle_t *)paddle_rect)->splash_frame != -1) {
-        draw_splash_frame(&game_info.screen, paddle.x + paddle.width, paddle.y, ((paddle_t *)paddle_rect)->splash_frame, 1);
-    }
 }
 
 static void
@@ -93,6 +99,39 @@ draw_gate(void *gate_rect, struct surface_t *screen) {
     surface_fill_rect(screen, &gate, rect->color);
 }
 
+static void
+draw_effect(effect_t *e, struct surface_t *screen) {
+    if (!e->enable) {
+        return;
+    }
+    int x = e->traced_rect->x;
+    if (!e->y_mirror) {
+        x += e->traced_rect->w;
+    }
+    int y = e->traced_rect->y + e->traced_rect->h / 2;
+
+    switch (e->type) {
+    case SPLASH:
+        draw_splash_frame(screen, x, y, e->frame, e->y_mirror);
+        e->frame += 1;
+        if (e->frame == get_splash_animation_frames()) {
+            e->frame = 0;
+            e->enable = 0;
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
+static void
+effect_attach(effect_t *e, rectangle_t *rect, int mirrored) {
+    e->enable = 1;
+    e->traced_rect = rect;
+    e->y_mirror = mirrored;
+}
+
 
 static void
 move_dummy(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
@@ -100,26 +139,22 @@ move_dummy(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
 
 
 static void
-move_paddle(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
-    paddle_t *paddle = paddle_array + 1;
+move_paddle(struct game_data *data) {
+    paddle_t *paddle = data->paddle + 1;
     paddle->rect.y += paddle->v_y;
-    if (paddle->rect.y >= screen->height - paddle->rect.h) {
-        paddle->rect.y = screen->height - paddle->rect.h;
+    if (paddle->rect.y >= data->screen.height - paddle->rect.h) {
+        paddle->rect.y = data->screen.height - paddle->rect.h;
     }
     if (paddle->rect.y <= 0) {
         paddle->rect.y = 0;
     }
-    if (paddle->splash_frame != -1) {
-        paddle->splash_frame += 1;
-        if (paddle->splash_frame == get_splash_animation_frames()) {
-            paddle->splash_frame = -1;
-        }
-    }
 }
 
 static void
-move_paddle_ai(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
-    paddle_t *paddle = paddle_array;
+move_paddle_ai(struct game_data *data) {
+    paddle_t *paddle = data->paddle;
+    struct surface_t *screen = &data->screen;
+    ball_t *ball = &data->ball;
     int center = paddle->rect.y + paddle_height / 2;
     int screen_center = screen->height / 2 - paddle_height / 2;
     int ball_speed = ball->v_y > 0 ? ball->v_y : -ball->v_y;
@@ -162,12 +197,6 @@ move_paddle_ai(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
     } else if (paddle->rect.y >= screen->height - paddle->rect.h) {
         paddle->rect.y = screen->height - paddle->rect.h;
     }
-    if (paddle->splash_frame != -1) {
-        paddle->splash_frame += 1;
-        if (paddle->splash_frame == get_splash_animation_frames()) {
-            paddle->splash_frame = -1;
-        }
-    }
 }
 
 // if return value is 1 collision occured. if return is 0, no collision.
@@ -190,7 +219,10 @@ check_collision(ball_t *ball, paddle_t *paddle) {
 
 
 static void
-move_ball(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
+move_ball(struct game_data *data) {
+    ball_t *ball = &data->ball;
+    paddle_t *paddle_array = data->paddle;
+    struct surface_t *screen = &data->screen;
     ball->rect.x += ball->v_x;
     ball->rect.y += ball->v_y;
 
@@ -200,7 +232,7 @@ move_ball(paddle_t *paddle_array, ball_t *ball, struct surface_t *screen) {
     for (int i = 0; i < 2; i++) {
         int collision = check_collision(ball, paddle_array + i);
         if (collision) {
-            paddle_array[i].splash_frame = 0;
+            effect_attach(&data->splash, (rectangle_t *)(paddle_array + i), i);
             if (ball->v_x < 0) {
                 ball->v_x -= 1;
             } else {
@@ -238,6 +270,21 @@ ball_init(ball_t *ball, int x, int y) {
     ball->rect.color = TEST_XRGB_WHITE;
 }
 
+static void
+effect_init(effect_t *e, enum EffectType type) {
+    e->type = type;
+    switch (type) {
+    case SPLASH:
+        e->frame = 0;
+        e->y_mirror = 0;
+        e->traced_rect = 0;
+        e->enable = 0;
+        break;
+    default:
+        break;
+    }
+}
+
 static inline void
 paddle_init(paddle_t *paddle, int x, int y, uint32_t color, move_func move) {
     paddle->rect.x = x;
@@ -245,7 +292,6 @@ paddle_init(paddle_t *paddle, int x, int y, uint32_t color, move_func move) {
     paddle->rect.w = paddle_width;
     paddle->rect.h = paddle_height;
     paddle->rect.draw = draw_paddle;
-    paddle->splash_frame = -1;
     paddle->rect.move = move;
     paddle->rect.color = color;
 }
@@ -268,14 +314,13 @@ gates_init(rectangle_t *gate, struct surface_t *screen) {
         gate[i].color = TEST_XRGB_WHITE;
         gate[i].draw = draw_gate;
         gate[i].y = 0;
+        gate[i].h = screen->height;
     }
     gate->x = 0;
     gate->w = frame_width;
-    gate->h = screen->width;
 
     gate[1].x = screen->width - frame_width;
     gate[1].w = frame_width;
-    gate[1].h = screen->width;
 }
 
 static void
@@ -292,6 +337,8 @@ game_init() {
     net_init(&game_info.net, game_info.screen.width);
     gates_init(game_info.gates, &game_info.screen);
 
+    effect_init(&game_info.splash, SPLASH);
+
     game_info.objects[0] = (rectangle_t *)&game_info.paddle[0];
     game_info.objects[1] = (rectangle_t *)&game_info.paddle[1];
     game_info.objects[2] = (rectangle_t *)&game_info.ball;
@@ -305,7 +352,7 @@ game_init() {
 
 
 static enum State
-check_game_over(struct game_data_t *info) {
+check_game_over(struct game_data *info) {
     struct font_t *font = get_main_font();
     // check over all games
     if (info->ai_score == max_score) {
@@ -323,7 +370,7 @@ check_game_over(struct game_data_t *info) {
         game_info.user_score += 1;
         game_init();
     }
-    if (info->ball.rect.x > info->screen.width - 10) {
+    if (info->ball.rect.x > info->screen.width - info->ball.rect.w) {
         game_info.ai_score += 1;
         game_init();
     }
@@ -342,6 +389,7 @@ pong(void) {
         // draw background
 
         surface_clear(&game_info.screen, TEST_XRGB_BLACK);
+        draw_effect(&game_info.splash, &game_info.screen);
 
         draw_number(&game_info.screen, game_info.screen.height / 2, 10, game_info.ai_score);
         draw_number(&game_info.screen, game_info.screen.height / 2 + 110, 10, game_info.user_score);
@@ -366,14 +414,13 @@ pong(void) {
         }
 
         for (int i = 0; i < game_info.nmovable; ++i) {
-            game_info.objects[i]->move(game_info.paddle, &game_info.ball, &game_info.screen);
+            game_info.objects[i]->move(&game_info);
         }
         for (int i = 0; i < game_info.ndrawable; ++i) {
             game_info.objects[i]->draw(game_info.objects[i], &game_info.screen);
         }
         surface_display(&game_info.screen);
         game_delay(next_game_tick);
-        // cprintf("fps %ld\n", 1000 / ((int64_t)current_ms() - temp));
     }
     surface_destroy(&game_info.screen);
     return 0;

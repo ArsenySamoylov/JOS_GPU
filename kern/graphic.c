@@ -20,15 +20,14 @@ get_main_surface() {
 
     return &main_surface;
 }
-
 struct font_t *
 get_main_font() {
     static struct font_t font;
-    static bool is_loaded = false;
+    static int is_loaded = 0;
 
     if (!is_loaded) {
         load_font(&font);
-        // is_loaded = true; // WTF? why is not working
+        // is_loaded = 1; // WTF? why is not working
     }
 
     return &font;
@@ -59,13 +58,13 @@ surface_fill_texture(struct surface_t *surface, const rect_t *rect, uint32_t *te
     if (y_mirror) {
         for (int y = rect->y; y < rect->y + rect->height; ++y) {
             for (int x = rect->x; x < rect->x + rect->width; ++x) {
-                surface->backbuf[y * surface->width + x] = texture[(y - rect->y) * rect->width + rect->width + rect->x - x];
+                surface->backbuf[y * surface->width + x] = texture[(y - rect->y) * rect->width +  rect->x + rect->width - x - 1];
             }
         }
     } else {
         for (int y = rect->y; y < rect->y + rect->height; ++y) {
             for (int x = rect->x; x < rect->x + rect->width; ++x) {
-                surface->backbuf[y * surface->width + x] = texture[(y - rect->y) * rect->width + (x - rect->x)];
+                surface->backbuf[y * surface->width + x] = texture[(y - rect->y) * rect->width + x - rect->x];
             }
         }
     }
