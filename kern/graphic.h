@@ -41,7 +41,7 @@ struct font_t {
     uint32_t char_width;
     uint32_t char_height;
 
-    struct xrgb_pixel* bitmaps;
+    struct xrgb_pixel *bitmaps;
 };
 
 struct vector {
@@ -50,8 +50,8 @@ struct vector {
 };
 
 
-struct surface_t* get_main_surface();
-struct font_t*    get_main_font();
+struct surface_t *get_main_surface();
+struct font_t *get_main_font();
 
 void
 surface_draw_circle(struct surface_t *resource, uint64_t x, uint64_t y, uint64_t r, uint32_t color);
@@ -61,7 +61,7 @@ void
 surface_fill_rect(struct surface_t *surface, const rect_t *rect, uint32_t color);
 
 void
-surface_fill_texture(struct surface_t *surface, const rect_t *rect, uint32_t *texture, int mirrored);
+surface_fill_texture(struct surface_t *surface, const rect_t *rect, uint32_t *texture, int y_mirror, uint32_t extra_color);
 
 void
 load_font(struct font_t *font);

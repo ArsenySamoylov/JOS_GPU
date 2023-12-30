@@ -118,7 +118,7 @@ get_splash_animation_frames() {
 
 
 void
-draw_splash_frame(struct surface_t *screen, uint32_t x, uint32_t y, uint32_t nframe, int mirrored) {
+draw_splash_frame(struct surface_t *screen, uint32_t x, uint32_t y, uint32_t nframe, int mirrored, uint32_t extra_color) {
     uint16_t height = 0, width = 0;
     uint32_t *texture = get_splash_animation(&width, &height);
     rect_t texture_rect = {.x = x,
@@ -128,5 +128,5 @@ draw_splash_frame(struct surface_t *screen, uint32_t x, uint32_t y, uint32_t nfr
     if (mirrored) {
         texture_rect.x -= width;
     }
-    surface_fill_texture(screen, &texture_rect, texture + height * width * nframe, mirrored);
+    surface_fill_texture(screen, &texture_rect, texture + height * width * nframe, mirrored, extra_color);
 }

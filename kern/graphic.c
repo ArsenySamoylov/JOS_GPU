@@ -54,7 +54,7 @@ surface_fill_rect(struct surface_t *surface, const rect_t *rect, uint32_t color)
 }
 
 void
-surface_fill_texture(struct surface_t *surface, const rect_t *rect, uint32_t *texture, int y_mirror) {
+surface_fill_texture(struct surface_t *surface, const rect_t *rect, uint32_t *texture, int y_mirror, uint32_t extra_color) {
     if (y_mirror) {
         for (int y = rect->y; y < rect->y + rect->height; ++y) {
             for (int x = rect->x; x < rect->x + rect->width; ++x) {
@@ -64,7 +64,12 @@ surface_fill_texture(struct surface_t *surface, const rect_t *rect, uint32_t *te
     } else {
         for (int y = rect->y; y < rect->y + rect->height; ++y) {
             for (int x = rect->x; x < rect->x + rect->width; ++x) {
-                surface->backbuf[y * surface->width + x] = texture[(y - rect->y) * rect->width + x - rect->x];
+                size_t idx = y * surface->width + x;
+                surface->backbuf[idx] = texture[(y - rect->y) * rect->width + x - rect->x];
+                if (surface->backbuf[idx] == TEST_XRGB_WHITE) {
+                    surface->backbuf[idx] = extra_color;
+                }
+
             }
         }
     }

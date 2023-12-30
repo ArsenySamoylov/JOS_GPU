@@ -5,7 +5,7 @@
 #include <inc/stdio.h>
 
 static int max_score = 9;
-static int paddle_width = 10;
+static int paddle_width = 11;
 static int paddle_height = 50;
 static int paddle_padding = 30;
 static int net_offset = 30;
@@ -46,9 +46,12 @@ typedef struct ball {
 typedef struct effect {
     rectangle_t *traced_rect;
     enum EffectType type;
+    int x_offset;
+    int y_offset;
     int y_mirror;
     int frame;
     int enable;
+    uint32_t extra_color;
 } effect_t;
 
 
@@ -81,7 +84,9 @@ static void
 draw_paddle(void *paddle_rect, struct surface_t *screen) {
     RECT2GPU_RECT(paddle_rect, paddle);
     surface_fill_rect(screen, &paddle, rect->color);
-    // surface_draw_circle(screen, paddle.x + (paddle.width -1) / 2, paddle.y, paddle.width / 2, rect->color);
+    surface_draw_circle(screen, paddle.x + (paddle.width -1) / 2, paddle.y, paddle.width / 2, rect->color);
+    surface_draw_circle(screen, paddle.x + (paddle.width -1) / 2, paddle.y + paddle.height, paddle.width / 2, rect->color);
+
 }
 
 static void
@@ -109,11 +114,11 @@ draw_effect(effect_t *e, struct surface_t *screen) {
     if (!e->y_mirror) {
         x += e->traced_rect->w;
     }
-    int y = e->traced_rect->y + e->traced_rect->h / 2;
+    int y = e->traced_rect->y - e->y_offset;
 
     switch (e->type) {
     case SPLASH:
-        draw_splash_frame(screen, x, y, e->frame, e->y_mirror);
+        draw_splash_frame(screen, x, y, e->frame, e->y_mirror, e->extra_color);
         e->frame += 1;
         if (e->frame == get_splash_animation_frames()) {
             e->frame = 0;
@@ -127,10 +132,13 @@ draw_effect(effect_t *e, struct surface_t *screen) {
 }
 
 static void
-effect_attach(effect_t *e, rectangle_t *rect, int mirrored) {
+effect_attach(effect_t *e, rectangle_t *rect, int mirrored, int x_offset, int y_offset, uint32_t color) {
     e->enable = 1;
     e->traced_rect = rect;
     e->y_mirror = mirrored;
+    e->x_offset = x_offset;
+    e->y_offset = y_offset;
+    e->extra_color = color;
 }
 
 
@@ -233,7 +241,9 @@ move_ball(struct game_data *data) {
     for (int i = 0; i < 2; i++) {
         int collision = check_collision(ball, paddle_array + i);
         if (collision) {
-            effect_attach(&data->splash, (rectangle_t *)(paddle_array + i), i);
+            int y_offset = data->paddle[i].rect.y - ball->rect.y;
+            uint32_t extra_color = (i == 0) ? TEST_XRGB_ORANGERED : TEST_XRGB_WHITE;
+            effect_attach(&data->splash, (rectangle_t *)(paddle_array + i), i, 0, y_offset, extra_color);
             if (ball->v_x < 0) {
                 ball->v_x -= 1;
             } else {
