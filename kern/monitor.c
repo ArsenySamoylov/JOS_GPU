@@ -91,8 +91,7 @@ int mon_example(int argc, char **argv, struct Trapframe *tf) {
     surface_init(&surface, gpu.screen_w, gpu.screen_h);
     surface_init(&surface2, gpu.screen_w, gpu.screen_h);
 
-    struct vector pos = {.x = 50, .y = 50};
-    surface_draw_circle(&surface, pos, 50, TEST_XRGB_RED);
+    surface_draw_circle(&surface, 50, 50, 50, TEST_XRGB_RED);
 
     rect_t rect = {100, 100, 30, 60};
     surface_fill_rect(&surface2, &rect, TEST_XRGB_BLUE);

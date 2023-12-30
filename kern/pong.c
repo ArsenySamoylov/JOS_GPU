@@ -4,7 +4,7 @@
 #include "graphic.h"
 #include <inc/stdio.h>
 
-static int max_score = 2;
+static int max_score = 9;
 static int paddle_width = 10;
 static int paddle_height = 50;
 static int paddle_padding = 30;
@@ -81,6 +81,7 @@ static void
 draw_paddle(void *paddle_rect, struct surface_t *screen) {
     RECT2GPU_RECT(paddle_rect, paddle);
     surface_fill_rect(screen, &paddle, rect->color);
+    // surface_draw_circle(screen, paddle.x + (paddle.width -1) / 2, paddle.y, paddle.width / 2, rect->color);
 }
 
 static void

@@ -33,11 +33,11 @@ get_main_font() {
     return &font;
 }
 void
-surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, uint32_t color) {
-    for (int i = pos.y - r; i <= pos.y + r; i++) {
-        for (int j = pos.x - r; j <= pos.x + r; j++) {
-            if ((i - r) * (i - r) + (j - r) * (j - r) <= r * r) {
-                resource->backbuf[i * resource->width + j] = color;
+surface_draw_circle(struct surface_t *resource, uint64_t x_center, uint64_t y_center, uint64_t r, uint32_t color) {
+    for (uint64_t y = y_center - r; y <= y_center + r; y++) {
+        for (uint64_t x = x_center - r; x <= x_center + r; x++) {
+            if ((x - x_center) * (x - x_center) + (y - y_center) * (y - y_center) <= r * r) {
+                resource->backbuf[y * resource->width + x] = color;
             }
         }
     }
@@ -58,7 +58,7 @@ surface_fill_texture(struct surface_t *surface, const rect_t *rect, uint32_t *te
     if (y_mirror) {
         for (int y = rect->y; y < rect->y + rect->height; ++y) {
             for (int x = rect->x; x < rect->x + rect->width; ++x) {
-                surface->backbuf[y * surface->width + x] = texture[(y - rect->y) * rect->width +  rect->x + rect->width - x - 1];
+                surface->backbuf[y * surface->width + x] = texture[(y - rect->y) * rect->width + rect->x + rect->width - x - 1];
             }
         }
     } else {

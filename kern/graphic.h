@@ -54,7 +54,7 @@ struct surface_t* get_main_surface();
 struct font_t*    get_main_font();
 
 void
-surface_draw_circle(struct surface_t *resource, struct vector pos, uint64_t r, uint32_t color);
+surface_draw_circle(struct surface_t *resource, uint64_t x, uint64_t y, uint64_t r, uint32_t color);
 
 // SDL_FillRect
 void
