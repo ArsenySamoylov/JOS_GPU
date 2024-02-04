@@ -21,4 +21,8 @@ void trap_init_percpu(void);
 void print_regs(struct PushRegs *regs);
 void print_trapframe(struct Trapframe *tf);
 
+typedef void (*irq_handler)(void);
+
+int reg_irq(int line, irq_handler handler);
+
 #endif /* JOS_KERN_TRAP_H */

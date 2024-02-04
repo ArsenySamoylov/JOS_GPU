@@ -63,6 +63,8 @@ struct Segdesc32 gdt[2 * NCPU + 7] = {
 
 struct Pseudodesc gdt_pd = {sizeof(gdt) - 1, (unsigned long)gdt};
 
+static irq_handler irq_handler_table[16] = {};
+
 static const char *
 trapname(int trapno) {
     static const char *const excnames[] = {
@@ -234,6 +236,14 @@ print_regs(struct PushRegs *regs) {
 
 static void
 trap_dispatch(struct Trapframe *tf) {
+    bool handled = false;
+    if (tf->tf_trapno >= IRQ_OFFSET && tf->tf_trapno < IRQ_OFFSET + 16) {
+        if (irq_handler_table[tf->tf_trapno - IRQ_OFFSET]) {
+            irq_handler_table[tf->tf_trapno - IRQ_OFFSET]();
+            pic_send_eoi(tf->tf_trapno - IRQ_OFFSET);
+            handled = true;
+        }
+    }
     switch (tf->tf_trapno) {
     case T_SYSCALL:
         /* todo */
@@ -254,10 +264,12 @@ trap_dispatch(struct Trapframe *tf) {
         timer_for_schedule->handle_interrupts();
         return;
     default:
-        print_trapframe(tf);
-        if (!(tf->tf_cs & 3))
-            panic("Unhandled trap in kernel");
-        env_destroy(curenv);
+        if (!handled) {
+            print_trapframe(tf);
+            if (!(tf->tf_cs & 3))
+                panic("Unhandled trap in kernel");
+            env_destroy(curenv);
+        }
     }
 }
 
@@ -312,4 +324,19 @@ trap(struct Trapframe *tf) {
      * if doing so makes sense */
     /* _It didn't make any sense_ (scheduler couldn't run at all) */
     sched_yield();
+}
+
+
+int
+reg_irq(int line, irq_handler handler) {
+    if (line >= 16 || line < 0) {
+        return -1;
+    }
+    if (handler) {
+        pic_irq_unmask(line);
+    } else {
+        pic_irq_mask(line);
+    }
+    irq_handler_table[line] = handler;
+    return 0;
 }
