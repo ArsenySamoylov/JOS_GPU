@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <kern/sched.h>
 #include <kern/env.h>
-#include <inc/stdio.h>
+#include <inc/assert.h>
 
 void
 sem_post(struct sem *sem) {
@@ -19,9 +19,7 @@ sem_wait(struct sem *sem) {
         asm volatile("sti");
         return;
     }
-    if (!curenv) {
-        cprintf("tf\n");
-    }
+    assert(curenv);
     curenv->sem = sem;
     asm volatile("int $0x30");
     asm volatile("sti");
