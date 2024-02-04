@@ -5,7 +5,49 @@
 
 
 struct Taskstate cpu_ts;
-_Noreturn void sched_halt(void);
+
+struct Env *
+sched(void) {
+    const int num = !curenv ? 0 : (curenv - envs) + 1;
+    for (int i = num; i < NENV; i++) {
+        if (envs[i].env_status == ENV_RUNNABLE &&
+            envs[i].env_type != ENV_TYPE_IDLE &&
+            curenv != envs + i) {
+            if (envs[i].sem && envs[i].sem->val <= 0) {
+                continue;
+            }
+            return envs + i;
+        }
+    }
+
+    for (int i = 0; i < num; i++) {
+        if (envs[i].env_status == ENV_RUNNABLE &&
+            envs[i].env_type != ENV_TYPE_IDLE &&
+            curenv != envs + i) {
+            if (envs[i].sem && envs[i].sem->val <= 0) {
+                continue;
+            }
+            return envs + i;
+        }
+    }
+
+    if (curenv && curenv->env_status == ENV_RUNNING &&
+        curenv->env_type != ENV_TYPE_IDLE) {
+        if ((curenv->sem && curenv->sem->val > 0) || !curenv->sem) {
+            return curenv;
+        }
+    }
+    
+    for (int i = 0; i < NENV; i++) {
+        if ((envs[i].env_status == ENV_RUNNABLE ||
+             envs[i].env_status == ENV_RUNNING) &&
+            envs[i].env_type == ENV_TYPE_IDLE) {
+                return envs + i;
+            }
+    }
+    
+    return NULL;
+}
 
 /* Choose a user environment to run and run it */
 _Noreturn void
@@ -25,60 +67,11 @@ sched_yield(void) {
      * below to halt the cpu */
 
     // LAB 3: Your code here:
-    const int num = !curenv ? 0 : (curenv - envs) + 1;
-    for (int i = num; i < NENV; i++)
-        {
-        if (envs[i].env_status == ENV_RUNNABLE && 
-            curenv != envs + i)
-            env_run(envs + i);
-        }
-
-    for (int i = 0; i < num; i++)
-        {
-        if (envs[i].env_status == ENV_RUNNABLE && 
-            curenv != envs + i)
-            env_run(envs + i);
-        }
-
-    if (curenv && curenv->env_status == ENV_RUNNING)
-        env_run(curenv);
-
-    cprintf("Halt\n");
-
-    /* No runnable environments,
-     * so just halt the cpu */
-    sched_halt();
-}
-
-/* Halt this CPU when there is nothing to do. Wait until the
- * timer interrupt wakes it up. This function never returns */
-_Noreturn void
-sched_halt(void) {
-
-    /* For debugging and testing purposes, if there are no runnable
-     * environments in the system, then drop into the kernel monitor */
-    int i;
-    for (i = 0; i < NENV; i++)
-        if (envs[i].env_status == ENV_RUNNABLE ||
-            envs[i].env_status == ENV_RUNNING) break;
-    if (i == NENV) {
-        cprintf("No runnable environments in the system!\n");
-        for (;;) monitor(NULL);
+    struct Env *e = sched();
+    assert(e);
+    if (e->sem) {
+        e->sem->val -= 1;
+        e->sem = NULL;
     }
-
-    /* Mark that no environment is running on CPU */
-    curenv = NULL;
-
-    /* Reset stack pointer, enable interrupts and then halt */
-    asm volatile(
-            "movq $0, %%rbp\n"
-            "movq %0, %%rsp\n"
-            "pushq $0\n"
-            "pushq $0\n"
-            "sti\n"
-            "hlt\n" ::"a"(cpu_ts.ts_rsp0));
-
-    /* Unreachable */
-    for (;;)
-        ;
+    env_run(e);
 }

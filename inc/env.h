@@ -6,6 +6,7 @@
 #include <inc/types.h>
 #include <inc/trap.h>
 #include <inc/memlayout.h>
+#include <kern/sem.h>
 
 typedef int32_t envid_t;
 
@@ -65,6 +66,7 @@ struct Env {
     enum EnvType env_type;   /* Indicates special system environments */
     unsigned env_status;     /* Status of the environment */
     uint32_t env_runs;       /* Number of times environment has run */
+    struct sem *sem;
 
     uint8_t *binary; /* Pointer to process ELF image in kernel memory */
 

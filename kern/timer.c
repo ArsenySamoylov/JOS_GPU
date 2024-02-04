@@ -255,7 +255,7 @@ hpet_enable_interrupts_tim1(void) {
 
     hpetReg->TIM1_CONF |= HPET_TN_VAL_SET_CNF;
     hpetReg->TIM1_CONF |= (HPET_TN_INT_ENB_CNF | HPET_TN_TYPE_CNF);
-    hpetReg->TIM1_COMP = hpetFreq * 1.5;
+    hpetReg->TIM1_COMP = hpetFreq * 0.003;
 
     pic_irq_unmask(IRQ_CLOCK);
 }

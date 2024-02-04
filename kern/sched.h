@@ -6,6 +6,7 @@
 #error "This is a JOS kernel header; user programs should not #include it"
 #endif
 
+struct Env *sched(void);
 _Noreturn void sched_yield(void);
 
 #endif /* !JOS_KERN_SCHED_H */

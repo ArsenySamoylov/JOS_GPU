@@ -80,6 +80,8 @@ envid2env(envid_t envid, struct Env **env_store, bool need_check_perm) {
     return 0;
 }
 
+_Noreturn void env_idle(void);
+
 /* Mark all environments in 'envs' as free, set their env_ids to 0,
  * and insert them into the env_free_list.
  * Make sure the environments are in the free list in the same order
@@ -95,11 +97,22 @@ env_init(void) {
     for (int i = 0; i < NENV; i++) {
         const struct Env temp = {{}, env_array + i + 1, 0, 0, ENV_FREE};
         env_array[i] = temp;
-        }
+    }
 
     env_array[NENV - 1].env_link = NULL;
 
-    env_free_list = env_array;    
+    env_free_list = env_array;
+
+    struct Env* idle_env = NULL;
+    int status = 0;
+    status = env_alloc(&idle_env, 0, ENV_TYPE_KERNEL);
+    if (status) {
+        cprintf ("%s: %i\n", __func__, status);
+    }
+    idle_env->env_tf.tf_rip = (uintptr_t) env_idle;
+    idle_env->sem = NULL;
+    idle_env->env_parent_id = 0;
+    idle_env->env_type = ENV_TYPE_IDLE;
 }
 
 /* Allocates and initializes a new environment.
@@ -328,6 +341,7 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
         }
 
     env->env_tf.tf_rip    = elf->e_entry;
+    env->sem = NULL;
     // env->env_tf.tf_rflags |= elf->e_flags; <- this breaks Lab 4
     // cprintf("%s: entry_point:%p\n", __func__, (void*)elf->e_entry);
     int status = bind_functions(env, binary, size, elf->e_entry, elf->e_entry + 0);

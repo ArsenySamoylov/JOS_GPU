@@ -157,14 +157,17 @@ i386_init(void) {
     
     /* User environment initialization functions */
     env_init();
+    monitor_spawn_env();
 
     /* Choose the timer used for scheduling: hpet or pit */
     timers_schedule("hpet1");
 
-    // GPU Lab
+    asm volatile("cli");
+    trap_init();
     pci_init();
-
-    monitor(NULL);
+    asm volatile("sti");
+    
+    asm volatile("hlt");
 }
 
 /* Variable panicstr contains argument to first call to panic; used as flag

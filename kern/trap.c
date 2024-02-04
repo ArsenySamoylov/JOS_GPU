@@ -94,15 +94,43 @@ trapname(int trapno) {
     return "(unknown trap)";
 }
 
+
 void
 trap_init(void) {
-    // LAB 4: Your code here
-    extern void clock_thdlr();
-    idt[IRQ_OFFSET + IRQ_CLOCK] = GATE(0, GD_KT, &clock_thdlr, 0);
-    // LAB 5: Your code here
-    extern void timer_thdlr();
-    idt[IRQ_OFFSET + IRQ_TIMER] = GATE(0, GD_KT, &timer_thdlr, 0);
-    /* Per-CPU setup */
+    extern void thdlr_syscall();
+    idt[T_SYSCALL] = GATE(0, GD_KT, &thdlr_syscall, 0);
+    extern void thdlr_irq0();
+    idt[IRQ_OFFSET + 0] = GATE(0, GD_KT, &thdlr_irq0, 0);
+    extern void thdlr_irq1();
+    idt[IRQ_OFFSET + 1] = GATE(0, GD_KT, &thdlr_irq1, 0);
+    extern void thdlr_irq2();
+    idt[IRQ_OFFSET + 2] = GATE(0, GD_KT, &thdlr_irq2, 0);
+    extern void thdlr_irq3();
+    idt[IRQ_OFFSET + 3] = GATE(0, GD_KT, &thdlr_irq3, 0);
+    extern void thdlr_irq4();
+    idt[IRQ_OFFSET + 4] = GATE(0, GD_KT, &thdlr_irq4, 0);
+    extern void thdlr_irq5();
+    idt[IRQ_OFFSET + 5] = GATE(0, GD_KT, &thdlr_irq5, 0);
+    extern void thdlr_irq6();
+    idt[IRQ_OFFSET + 6] = GATE(0, GD_KT, &thdlr_irq6, 0);
+    extern void thdlr_irq7();
+    idt[IRQ_OFFSET + 7] = GATE(0, GD_KT, &thdlr_irq7, 0);
+    extern void thdlr_irq8();
+    idt[IRQ_OFFSET + 8] = GATE(0, GD_KT, &thdlr_irq8, 0);
+    extern void thdlr_irq9();
+    idt[IRQ_OFFSET + 9] = GATE(0, GD_KT, &thdlr_irq9, 0);
+    extern void thdlr_irq10();
+    idt[IRQ_OFFSET + 10] = GATE(0, GD_KT, &thdlr_irq10, 0);
+    extern void thdlr_irq11();
+    idt[IRQ_OFFSET + 11] = GATE(0, GD_KT, &thdlr_irq11, 0);
+    extern void thdlr_irq12();
+    idt[IRQ_OFFSET + 12] = GATE(0, GD_KT, &thdlr_irq12, 0);
+    extern void thdlr_irq13();
+    idt[IRQ_OFFSET + 13] = GATE(0, GD_KT, &thdlr_irq13, 0);
+    extern void thdlr_irq14();
+    idt[IRQ_OFFSET + 14] = GATE(0, GD_KT, &thdlr_irq14, 0);
+    extern void thdlr_irq15();
+    idt[IRQ_OFFSET + 15] = GATE(0, GD_KT, &thdlr_irq15, 0);
     trap_init_percpu();
 }
 
@@ -207,6 +235,9 @@ print_regs(struct PushRegs *regs) {
 static void
 trap_dispatch(struct Trapframe *tf) {
     switch (tf->tf_trapno) {
+    case T_SYSCALL:
+        /* todo */
+        return;
     case IRQ_OFFSET + IRQ_SPURIOUS:
         /* Handle spurious interrupts
          * The hardware sometimes raises these because of noise on the
@@ -249,12 +280,23 @@ trap(struct Trapframe *tf) {
     if (trace_traps) cprintf("Incoming TRAP[%ld] frame at %p\n", tf->tf_trapno, tf);
     if (trace_traps_more) print_trapframe(tf);
 
-    assert(curenv);
+    if (!curenv) {
+        struct Env *e = sched();
+        assert(e);
+        if (e->sem) {
+            e->sem->val -= 1;
+            e->sem = NULL;
+        }
+        curenv = e;
+        curenv->env_status = ENV_RUNNING;
+        curenv->env_tf.tf_trapno = tf->tf_trapno;
+    } else {
+        /* Copy trap frame (which is currently on the stack)
+         * into 'curenv->env_tf', so that running the environment
+         * will restart at the trap point */
+        curenv->env_tf = *tf;
+    }
 
-    /* Copy trap frame (which is currently on the stack)
-     * into 'curenv->env_tf', so that running the environment
-     * will restart at the trap point */
-    curenv->env_tf = *tf;
     /* The trapframe on the stack should be ignored from here on */
     tf = &curenv->env_tf;
 
@@ -268,8 +310,6 @@ trap(struct Trapframe *tf) {
     /* If we made it to this point, then no other environment was
      * scheduled, so we should return to the current environment
      * if doing so makes sense */
-    if (curenv && curenv->env_status == ENV_RUNNING)
-        env_run(curenv);
-    else
-        sched_yield();
+    /* _It didn't make any sense_ (scheduler couldn't run at all) */
+    sched_yield();
 }

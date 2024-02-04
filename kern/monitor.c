@@ -166,3 +166,19 @@ monitor(struct Trapframe *tf) {
     do buf = readline("K> ");
     while (!buf || runcmd(buf, tf) >= 0);
 }
+
+static uint8_t mon_stack[65536] = {};
+
+void
+monitor_spawn_env() {
+    struct Env* mon_env = NULL;
+    int status = 0;
+    status = env_alloc(&mon_env, 0, ENV_TYPE_KERNEL);
+    if (status) {
+        cprintf ("%s: %i\n", __func__, status);
+    }
+    mon_env->env_tf.tf_rip = (uintptr_t) monitor;
+    mon_env->env_tf.tf_rsp = (uintptr_t) mon_stack + 65536;
+    mon_env->sem = NULL;
+    mon_env->env_parent_id = 0;
+}

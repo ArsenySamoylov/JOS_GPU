@@ -24,6 +24,12 @@ entry:
 
 #ifdef CONFIG_KSPACE
 
+.globl env_idle
+.type env_idle, @function
+env_idle:
+    hlt
+    jmp env_idle
+
 .global save_trapframe_trap
 save_trapframe_trap:
     cli
