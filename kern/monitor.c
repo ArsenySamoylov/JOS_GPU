@@ -19,6 +19,7 @@
 #include <kern/trap.h>
 
 #include <kern/pong.h>
+#include <kern/play_snd.h>
 #include <kern/graphic.h>
 
 #define WHITESPACE "\t\r\n "
@@ -29,6 +30,7 @@ int mon_help(int argc, char **argv, struct Trapframe *tf);
 int mon_pong(int argc, char **argv, struct Trapframe *tf);
 int mon_font(int argc, char **argv, struct Trapframe *tf);
 int mon_example(int argc, char **argv, struct Trapframe *tf);
+int mon_play_snd(int argc, char **argv, struct Trapframe *tf);
 
 struct Command {
     const char *name;
@@ -38,10 +40,11 @@ struct Command {
 };
 
 static struct Command commands[] = {
-        {"help",    "Display this list of commands", mon_help},
-        {"pong",    "Start playing pong",            mon_pong},
-        {"font",    "Display string on screen",      mon_font},
-        {"example", "Best example",                  mon_example},
+        {"help",     "Display this list of commands", mon_help},
+        {"pong",     "Start playing pong",            mon_pong},
+        {"font",     "Display string on screen",      mon_font},
+        {"example",  "Best example",                  mon_example},
+        {"play_snd", "HDA example",                   mon_play_snd},
 };
 
 #define NCOMMANDS (sizeof(commands) / sizeof(commands[0]))
@@ -115,6 +118,12 @@ int mon_example(int argc, char **argv, struct Trapframe *tf) {
     
     surface_clear(&surface,  XRGB_DEFAULT_COLOR);
     surface_clear(&surface2, XRGB_DEFAULT_COLOR);
+    return 0;
+}
+
+int
+mon_play_snd(int argc, char **argv, struct Trapframe *tf) {
+    play_snd_test();
     return 0;
 }
 

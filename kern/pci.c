@@ -4,6 +4,7 @@
 #include <kern/pci.h>
 #include <kern/pcireg.h>
 #include <kern/virtio-gpu.h>
+#include <kern/hda.h>
 
 // Flag to do "lspci" at bootup
 static int pci_show_devs = 1;
@@ -16,6 +17,7 @@ static uint32_t PCI_CONF_DATA_PORT = 0x0cfc;
 // Forward declarations
 static int pci_bridge_attach(struct pci_func *pcif);
 static int pci_vga_attach(struct pci_func *pcif);
+static int pci_hda_attach(struct pci_func *pcif);
 
 // PCI driver table
 struct pci_driver {
@@ -27,6 +29,7 @@ struct pci_driver {
 struct pci_driver pci_attach_class[] = {
 	{ PCI_CLASS_BRIDGE, PCI_SUBCLASS_BRIDGE_PCI, &pci_bridge_attach },
 	{ PCI_CLASS_DISPLAY, PCI_SUBCLASS_DISPLAY_VGA, &pci_vga_attach },
+	{ PCI_CLASS_MULTIMEDIA, PCI_SUBCLASS_MASS_STORAGE_IPI, &pci_hda_attach },
 	{ 0, 0, 0 },
 };
 
@@ -239,6 +242,11 @@ pci_bridge_attach(struct pci_func *pcif)
 
 static int pci_vga_attach(struct pci_func *pcif) {
 	init_gpu(pcif);
+	return 1;
+}
+
+static int pci_hda_attach(struct pci_func *pcif) {
+	init_hda(pcif);
 	return 1;
 }
 

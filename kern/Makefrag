@@ -28,6 +28,7 @@ KERN_SRCFILES := kern/bootstrap.S \
 			kern/timer.c \
 			kern/sched.c \
 			kern/sem.c \
+			kern/play_snd.c \
 			kern/syscall.c \
 			kern/kdebug.c \
 			lib/printfmt.c \
@@ -39,11 +40,13 @@ KERN_SRCFILES := kern/bootstrap.S \
 			kern/spinlock.c \
 			kern/virtio-gpu.c \
 			kern/pong-utilities.c \
+			kern/hda.c \
 			kern/pong.c \
 			kern/graphic.c \
 			kern/pci.c \
 			kern/raw_bin.S \
-			kern/raw_asset.S
+			kern/raw_asset.S \
+			kern/mus_test.S
 
 ifeq ($(CONFIG_KSPACE),y)
 KERN_SRCFILES += kern/alloc.c

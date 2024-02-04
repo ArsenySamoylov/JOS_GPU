@@ -60,9 +60,14 @@ SECTIONS
     __bin_start = .;
      obj/kern/raw_bin.o (.rawdata)
     __bin_end = .;
+
     __assets_start = .;
      obj/kern/raw_asset.o (.rawdata)
     __assets_end = .;
+
+    __rawdataaudio_start = .;
+    obj/kern/mus_test.o (.rawdataaudio)
+    __rawdataaudio_end = .;
   }
 
   PROVIDE(edata = .);
