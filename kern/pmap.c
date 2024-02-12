@@ -1869,8 +1869,8 @@ init_memory(void) {
     res = map_physical_region(current_space, 0, X86ADDR(KERN_BASE_ADDR), MIN(MAX_LOW_ADDR_KERN_SIZE, max_memory_map_addr), PROT_R | PROT_W | ALLOC_WEAK);
     assert(!res);
     // TODO check mapping
-    // res = map_physical_region(current_space, X86ADDR((uintptr_t)__text_start), PADDR(__text_start), ROUNDUP((uintptr_t)__text_end, CLASS_SIZE(0)) - PADDR(__text_start), PROT_R | PROT_X);
-    // assert(!res);
+    res = map_physical_region(current_space, X86ADDR((uintptr_t)__text_start), PADDR(__text_start), ROUNDUP((uintptr_t)__text_end, CLASS_SIZE(0)) - (uintptr_t)__text_start, PROT_R | PROT_X);
+    assert(!res);
     res = map_physical_region(current_space, PADDR(bootstack), X86ADDR(KERN_STACK_TOP - KERN_STACK_SIZE), PADDR(bootstacktop) - PADDR(bootstack), PROT_R | PROT_W);
     assert(!res);
     res = map_physical_region(current_space, PADDR(pfstack), X86ADDR(KERN_PF_STACK_TOP - KERN_PF_STACK_SIZE), PADDR(pfstacktop) - PADDR(pfstack), PROT_R | PROT_W);
