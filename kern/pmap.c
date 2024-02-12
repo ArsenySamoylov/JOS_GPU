@@ -1003,7 +1003,7 @@ map_page(struct AddressSpace *spc, uintptr_t addr, struct Page *page, int flags)
             return -E_NO_MEM;
 
         pte_t *pt = KADDR(PTE_ADDR(pd[pdi0]));
-        if (alloc_fill_pt(pt, old & ~PTE_PS, 2 * MB, 0, PT_ENTRY_COUNT) < 0)
+        if (alloc_fill_pt(pt, old & ~PTE_PS, 4 * KB, 0, PT_ENTRY_COUNT) < 0)
             return -E_NO_MEM;
     }
     /* Calculate kernel virtual address of page directory */
