@@ -89,10 +89,10 @@ list_init(struct List *list) {
  */
 inline static void __attribute__((always_inline))
 list_append(struct List *list, struct List *new) {
-    // LAB 6: Your code here
+    list->next->prev = new;
     new->next = list->next;
-    new->prev = list;
     list->next = new;
+    new->prev = list;
 }
 
 /*
@@ -109,6 +109,7 @@ list_del(struct List *list) {
     next_l->prev = prev_l;
 
     list_init(list);
+
     return list;
 }
 
@@ -189,26 +190,19 @@ alloc_child(struct Page *parent, bool right) {
     assert(parent);
 
     // LAB 6: Your code here
-    struct Page *new = alloc_descriptor(PARTIAL_NODE);
-    new->parent = parent;
-    new->state  = parent->state;
 
-    assert(parent->state != MAPPING_NODE); // if state == MAPPING_NODE, than union interpreted as '*phy'
-    assert(parent->class > 0);
-
-    new->refc   = parent->refc ? 1 : 0;
-    new->class  = parent->class - 1; 
-
-    if (right) { 
-        // posible overflow
-        new->addr     = parent->addr + (1ULL << (parent->class - 1));
+    struct Page *new = alloc_descriptor(parent->state);
+    if (right) {
         parent->right = new;
+        new->addr = parent->addr + (1lu << (parent->class - 1));
+    } else {
+        parent->left = new;
+        new->addr = parent->addr;
     }
-    else {
-        new->addr     = parent->addr;
-        parent->left  = new;
-    }
-
+    new->parent = parent;
+    new->class = parent->class - 1;
+    new->state = parent->state;
+    new->refc = parent->refc ? 1 : 0;
     return new;
 }
 
@@ -439,14 +433,13 @@ static void
 attach_region(uintptr_t start, uintptr_t end, enum PageState type) {
     if (trace_memory_more)
         cprintf("Attaching memory region [%08lX, %08lX] with type %d\n", start, end - 1, type);
-    
     int class = 0, res = 0;
     (void)class;
     (void)res;
 
     // LAB 6: Your code here
     start = ROUNDDOWN(start, CLASS_SIZE(0));
-    end   = ROUNDUP  (end,   CLASS_SIZE(0));
+    end = ROUNDUP(end, CLASS_SIZE(0));
 
     while (start < end) {
         for (int i = MAX_CLASS; i >= 0; --i) {
@@ -457,17 +450,16 @@ attach_region(uintptr_t start, uintptr_t end, enum PageState type) {
                 continue;
 
             if (start + CLASS_SIZE(i) == end &&
-               (end  & CLASS_MASK(i)))
+                (end & CLASS_MASK(i)))
                 continue;
 
-            struct Page* new = page_lookup(NULL, start, i, type, 1);
+            struct Page *new = page_lookup(NULL, start, i, type, 1);
             assert(new);
             start += CLASS_SIZE(i);
             break;
-            }
-
         }
     }
+}
 
 static void
 unmap_page_remove(struct Page *node) {
@@ -498,6 +490,7 @@ remove_pt(pte_t *pt, pte_t base, size_t step, uintptr_t i0, uintptr_t i1) {
     assert(step == 1 * GB || step == 2 * MB || step == 4 * KB || step == 512 * GB);
     for (size_t i = i0; i < i1; i++) {
         if (!(pt[i] & PTE_P)) continue;
+        cprintf("step: %ld pt[i] %% PTE_PS = %ld\n", step, pt[i] % PTE_PS);
         assert(!(pt[i] & PTE_PS) || (step == 1 * GB || step == 2 * MB));
 
         if (!(pt[i] & PTE_PS) && step > 4 * KB) {
@@ -633,15 +626,16 @@ dump_virtual_tree(struct Page *node, int class) {
 }
 
 void
-dump_memory_lists(void) {
-    // LAB 6: Your code here
-    for (int i = 0; i < MAX_CLASS; ++i) {
-        cprintf("free_classes[%d] (%p) p:%p n:%p\n", i, free_classes+i, free_classes[i].prev, free_classes[i].next);
-        for(struct List* l = free_classes[i].next; l != &free_classes[i]; l = l->next) {
-            struct Page* p = (struct Page*)(l);
-            cprintf("Page [%lx, %llx] class: %d\n", PADDR(p), PADDR(p) + CLASS_SIZE(p->class), p->class);
-        }
+dump_helper(struct Page *node) {
+    dump_entry((pte_t)node, node->class, node->left ? 1 : 0);
+    if (node->left) {
+        dump_helper(node->left);
+        dump_helper(node->right);
     }
+}
+void
+dump_memory_lists(void) {
+    dump_helper(&root);
 }
 
 
@@ -946,7 +940,6 @@ map_page(struct AddressSpace *spc, uintptr_t addr, struct Page *page, int flags)
     if (!(spc->pml4[pml4i0] & PTE_P)) {
         if (alloc_pt(spc->pml4 + pml4i0) < 0)
             return -E_NO_MEM;
-
         if (pml4i0 >= NUSERPML4)
             propagate_pml4(spc);
     }
@@ -1530,8 +1523,7 @@ detect_memory(void) {
      * (from IOPHYSMEM to the physical address of end label. end points the the
      *  end of kernel executable image.)*/
     // LAB 6: Your code here
-    assert((uintptr_t) &end - KERN_BASE_ADDR > EXTPHYSMEM);
-    attach_region((uintptr_t)IOPHYSMEM, PADDR(&end), RESERVED_NODE);
+    attach_region(IOPHYSMEM, (uintptr_t)end, RESERVED_NODE);
 
     /* Detect memory via ether UEFI or CMOS */
     if (uefi_lp && uefi_lp->MemoryMap) {
@@ -1827,6 +1819,7 @@ init_memory(void) {
         assert(!zero_page_raw[i]);
 
     switch_address_space(&kspace);
+
 
     /* One page is a page filled with 0xFF values -- ASAN poison */
     nosan_memset(one_page_raw, 0xFF, CLASS_SIZE(MAX_ALLOCATION_CLASS));
