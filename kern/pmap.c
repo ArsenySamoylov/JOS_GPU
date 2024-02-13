@@ -1773,8 +1773,8 @@ init_memory(void) {
     assert(__text_end - __text_start < MAX_LOW_ADDR_KERN_SIZE);
     assert((uintptr_t)(end - KERN_BASE_ADDR) < MIN(BOOT_MEM_SIZE, max_memory_map_addr));
 
-    res = map_physical_region(&kspace, (uintptr_t)__text_start, PADDR(&__text_start), 
-                              ROUNDUP((uintptr_t)__text_end, CLASS_SIZE(0)) - (uintptr_t)__text_start, PROT_W | PROT_R);
+    res = map_physical_region(&kspace, (uintptr_t)__text_start, PADDR(__text_start), 
+                              ROUNDUP((uintptr_t)__text_end, CLASS_SIZE(0)) - (uintptr_t)__text_start, PROT_X | PROT_W | PROT_R);
     assert(!res);
 
     /* Allocate kernel stacks */
