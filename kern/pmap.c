@@ -766,14 +766,14 @@ memcpy_page(struct AddressSpace *dst, uintptr_t va, struct Page *page) {
     // LAB 7: Your code here
     assert(page);
     assert(page->state == MAPPING_NODE);
-    assert_physical(page);
+    assert(CLASS_SIZE(page->phy->class) == PAGE_SIZE);
 
-    void *src_va = KADDR(page2pa(page));
-    set_wp(0);
+    void *src_va = KADDR(page2pa(page->phy));
     struct AddressSpace *current = switch_address_space(dst);
-    nosan_memcpy((void*)va, src_va, CLASS_SIZE(page->class));
-    switch_address_space(current);
+    set_wp(0);
+    nosan_memcpy((void*)va, src_va, PAGE_SIZE);
     set_wp(1);
+    switch_address_space(current);
 }
 
 static void
