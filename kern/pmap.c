@@ -1001,7 +1001,7 @@ map_page(struct AddressSpace *spc, uintptr_t addr, struct Page *page, int flags)
      * TIP: Look at the code above doing the same thing for 1GB pages */
 
     // LAB 7: Your code here
-    if (!(pd[pdi0] & PTE_P) && alloc_pt(pd + pdpi0) < 0) {
+    if (!(pd[pdi0] & PTE_P) && alloc_pt(pd + pdi0) < 0) {
         return -E_NO_MEM;
     } else if (pd[pdi0] & PTE_PS) {
         pte_t old = pd[pdi0];
