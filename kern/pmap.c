@@ -92,7 +92,9 @@ list_append(struct List *list, struct List *new) {
     // LAB 6: Your code here
     new->next = list->next;
     new->prev = list;
-    list->next = new;
+
+    new->next->prev = new;
+    new->prev->next = new;
 }
 
 /*
