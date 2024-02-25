@@ -39,12 +39,10 @@ struct Page root;
 /* Top address for page pools mappings */
 static uintptr_t metaheaptop;
 
-// TODO Test these properly via cpuid
-
 /* Not-executable bit supported by page tables */
-static bool nx_supported = 1;
+static bool nx_supported;
 /* 1GB pages are supported */
-static bool has_1gb_pages = 1;
+static bool has_1gb_pages;
 
 /* Kernel executable end virtual address */
 extern char end[];
@@ -694,7 +692,7 @@ propagate_one_pml4(struct AddressSpace *dst, struct AddressSpace *src) {
     /* Dereference old level 3 page tables */
     for (size_t i = NUSERPML4; i < PML4_ENTRY_COUNT; i++) {
         if (dst->pml4[i] & PTE_P && i != PML4_INDEX(UVPT))
-            page_ref(page_lookup(NULL, PTE_ADDR(dst->pml4[i]), 0, PARTIAL_NODE, 0));
+            page_unref(page_lookup(NULL, PTE_ADDR(dst->pml4[i]), 0, PARTIAL_NODE, 0));
     }
 
     pte_t uvpt = dst->pml4[PML4_INDEX(UVPT)];
@@ -730,7 +728,7 @@ alloc_fill_pt(pte_t *dst, pte_t base, size_t step, size_t i0, size_t i1) {
             if (res < 0)
                 return res;
 
-            res = alloc_fill_pt(dst + i, base, step / PT_ENTRY_COUNT, 0, PT_ENTRY_COUNT);
+            res = alloc_fill_pt(KADDR(PTE_ADDR(dst[i])), base, step / PT_ENTRY_COUNT, 0, PT_ENTRY_COUNT);
             if (res < 0)
                 return res;
 
@@ -1507,6 +1505,27 @@ switch_address_space(struct AddressSpace *space) {
     return old;
 }
 
+int
+init_address_space(struct AddressSpace *space) {
+    /* Allocte page table with alloc_pt into space->cr3
+     * (remember to clean flag bits of result with PTE_ADDR) */
+    // LAB 8: Your code here
+
+    /* Put its kernel virtual address to space->pml4 */
+    // LAB 8: Your code here
+
+    /* Allocate virtual tree root node
+     * of type INTERMEDIATE_NODE with alloc_rescriptor() of type */
+    // LAB 8: Your code here
+
+    /* Initialize UVPT */
+    // LAB 8: Your code here
+
+    /* Why this call is required here and what does it do? */
+    propagate_one_pml4(space, &kspace);
+    return 0;
+}
+
 /* Buffers for filler pages are statically allocated for simplicity
  * (this is also required for early KASAN) */
 __attribute__((aligned(HUGE_PAGE_SIZE))) uint8_t zero_page_raw[HUGE_PAGE_SIZE];
@@ -1623,6 +1642,16 @@ init_allocator(void) {
     list_init(&root.head);
     root.class = MAX_CLASS;
     root.state = PARTIAL_NODE;
+
+    /* Query the presence of the utilized features.
+     * We don't need to check availability of CPUID leaf node 0x80000001
+     * since we are in the Long mode, which itself described in that leaf. */
+    uint32_t edx;
+    cpuid(0x80000001, NULL, NULL, NULL, &edx);
+    has_1gb_pages = edx & (1 << 26);
+    nx_supported = edx & (1 << 20);
+    if (trace_init)
+        cprintf("CPUID: 1GB pages: %d, NX: %d\n", has_1gb_pages, nx_supported);
 }
 
 void *
@@ -1899,4 +1928,36 @@ init_memory(void) {
 
     check_virtual_tree(kspace.root, MAX_CLASS);
     if (trace_init) cprintf("Kernel virtual memory tree is correct\n");
+}
+
+static uintptr_t user_mem_check_addr;
+
+/*
+ * This function checks whether given memory range
+ * has specified permissions and sets user_mem_check_addr
+ * to first non-applicable address
+ *
+ * HINT: Use page_lookup_virtual with class==0 alloc==0 to
+ * lookup the smallest existing page at the given address.
+ *
+ * Returned page should have associated physical page
+ * and permissions set as bits in state field.
+ *
+ * Return 0 if check is passed or -E_FAULT if region
+ * does not have enough permissions.
+ */
+int
+user_mem_check(struct Env *env, const void *va, size_t len, int perm) {
+    // LAB 8: Your code here
+    return -E_FAULT;
+}
+
+void
+user_mem_assert(struct Env *env, const void *va, size_t len, int perm) {
+    if (user_mem_check(env, va, len, perm | PROT_USER_) < 0) {
+        cprintf("[%08x] user_mem_check assertion failure for "
+                "va=%016zx ip=%016zx\n",
+                env->env_id, user_mem_check_addr, env->env_tf.tf_rip);
+        env_destroy(env); /* may not return */
+    }
 }
