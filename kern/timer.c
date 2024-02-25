@@ -89,6 +89,7 @@ acpi_find_table(const char *sign) {
      */
     // LAB 5: Your code here:
     RSDP* rsd_ptr = (RSDP*) uefi_lp->ACPIRoot;
+    rsd_ptr = mmio_map_region((physaddr_t)rsd_ptr, sizeof(*rsd_ptr));
     // todo: check_sum rsd_ptr
     // todo: mapping?
 
@@ -99,10 +100,12 @@ acpi_find_table(const char *sign) {
         default: panic("Wrong ACPI version");
     }
 
+    rsdt = mmio_map_region((physaddr_t) rsdt, sizeof(*rsdt));
     // todo: validate rsdt
     int n_sdt = (rsdt->h.Length - sizeof(rsdt->h)) / sizeof(rsdt->PointerToOtherSDT[0]);
     for (int i = 0; i < n_sdt; ++i) {
         ACPISDTHeader* header = *((ACPISDTHeader**) rsdt->PointerToOtherSDT + i);
+        header = mmio_map_region((physaddr_t) header, sizeof(*header));
         // todo: validate
         // cprintf("%s\n", header->Signature);
         if (!strncmp(header->Signature, sign, 4))

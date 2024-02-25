@@ -1872,7 +1872,7 @@ init_memory(void) {
     //     [PADDR(bootstack), PADDR(boottop)] as RW-
     // Map [X86ADDR(KERN_PF_STACK_TOP - KERN_PF_STACK_SIZE), KERN_PF_STACK_TOP] to
     //     [PADDR(pfstack), PADDR(pfstacktop)] as RW-
-    res = map_physical_region(&kspace, uefi_lp->FrameBufferBase, FRAMEBUFFER, 
+    res = map_physical_region(&kspace, FRAMEBUFFER, uefi_lp->FrameBufferBase, 
                               uefi_lp->FrameBufferSize, PROT_W | PROT_R | PROT_WC);
     assert(!res);
     
