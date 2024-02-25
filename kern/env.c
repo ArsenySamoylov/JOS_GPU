@@ -160,7 +160,10 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     static uintptr_t stack_top = 0x2000000;
     env->env_tf.tf_rsp = stack_top;
     stack_top -= PAGE_SIZE*2;
-
+    int res;
+    res = map_physical_region(&kspace, stack_top, stack_top, 
+                              PAGE_SIZE*2, PROT_W | PROT_R); 
+    // assert(res); // TODO returns error for sm-reasomn \_(:=)_/
 #else
     env->env_tf.tf_ds = GD_UD | 3;
     env->env_tf.tf_es = GD_UD | 3;
@@ -321,6 +324,11 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
             // cprintf("filesz %ld, memsz %ld, va %p, pa %p\n", ph->p_filesz, ph->p_memsz, (void*) ph->p_va, (void*) ph->p_pa);
             return -E_INVALID_EXE;
         }
+        
+        int res;
+        res = map_physical_region(&kspace, ph->p_va, ph->p_pa, 
+                              ph->p_memsz, PROT_W | PROT_R | PROT_X);    
+        assert(!res);
 
         memcpy((void*) ph->p_va, binary + ph->p_offset, ph->p_filesz);
         memset((void*) (ph->p_va + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
