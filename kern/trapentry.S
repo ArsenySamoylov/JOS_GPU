@@ -81,5 +81,11 @@ _alltraps:
 # Use TRAPHANDLER or TRAPHANDLER_NOEC to setup
 # all trap handlers' entry points
 # (Look up their list in inc/trap.h)
+TRAPHANDLER_NOEC(clock_thdlr, IRQ_OFFSET + IRQ_CLOCK)
+TRAPHANDLER_NOEC(timer_thdlr, IRQ_OFFSET + IRQ_TIMER)
+
+TRAPHANDLER_NOEC(syscall_hdlr, T_SYSCALL)
+
+TRAPHANDLER(pgflt_handler, T_PGFLT)
 
 #endif

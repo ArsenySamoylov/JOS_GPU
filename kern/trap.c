@@ -112,8 +112,13 @@ trap_init(void) {
      * #PF is the only kind of exception that
      * can legally happen during normal kernel
      * code execution */
+    extern void pgflt_handler();
+    idt[T_PGFLT] = GATE(0, GD_KT, &pgflt_handler, 0);   
     idt[T_PGFLT].gd_ist = 1;
 
+    extern void syscall_hdlr();
+    idt[T_SYSCALL] = GATE(0, GD_KT, &syscall_hdlr, 0);
+    
     /* Per-CPU setup */
     trap_init_percpu();
 }

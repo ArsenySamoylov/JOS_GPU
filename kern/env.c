@@ -98,18 +98,27 @@ env_init(void) {
     /* Map envs to UENVS read-only,
      * but user-accessible (with PROT_USER_ set) */
     // LAB 8: Your code here
+    assert(current_space);
+    
+    const size_t size = ROUNDUP(NENV * sizeof(*envs), PAGE_SIZE);
+    envs = kzalloc_region(size);
+    assert(envs);
+
+    // TODO
+    int res = map_region(current_space, UENVS, current_space, (uintptr_t) envs, size, PROT_R | PROT_USER_);
+    assert(!res);
 
     /* Set up envs array */
 
     // LAB 3: Your code here
     for (int i = 0; i < NENV; i++) {
-        const struct Env temp = {{}, env_array + i + 1, 0, 0, ENV_FREE};
-        env_array[i] = temp;
+        const struct Env temp = {{}, envs + i + 1, 0, 0, ENV_FREE};
+        envs[i] = temp;
         }
 
-    env_array[NENV - 1].env_link = NULL;
+    envs[NENV - 1].env_link = NULL;
 
-    env_free_list = env_array;    
+    env_free_list = envs;    
 }
 
 /* Allocates and initializes a new environment.
@@ -526,8 +535,9 @@ env_run(struct Env *env) {
     curenv->env_status = ENV_RUNNING;
     curenv->env_runs++;
 
-    env_pop_tf(&env->env_tf);
     // LAB 8: Your code here
+    switch_address_space(&curenv->address_space);
+    env_pop_tf(&env->env_tf);
 
     panic("Reached unrecheble\n");    
 }
