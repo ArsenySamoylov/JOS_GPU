@@ -177,7 +177,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     int res;
     res = map_physical_region(&kspace, stack_top, stack_top, 
                               PAGE_SIZE*2, PROT_W | PROT_R); 
-    // assert(res); // TODO returns error for sm-reasomn \_(:=)_/
+    assert(!res);
 #else
     env->env_tf.tf_ds = GD_UD | 3;
     env->env_tf.tf_es = GD_UD | 3;
