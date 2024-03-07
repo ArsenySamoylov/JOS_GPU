@@ -81,6 +81,7 @@ envid2env(envid_t envid, struct Env **env_store, bool need_check_perm) {
 }
 
 _Noreturn void env_idle(void);
+static _Alignas(128) char idle_stack[2048] = {};
 
 /* Mark all environments in 'envs' as free, set their env_ids to 0,
  * and insert them into the env_free_list.
@@ -110,6 +111,7 @@ env_init(void) {
         cprintf ("%s: %i\n", __func__, status);
     }
     idle_env->env_tf.tf_rip = (uintptr_t) env_idle;
+    idle_env->env_tf.tf_rsp = (uintptr_t) idle_stack;
     idle_env->sem = NULL;
     idle_env->env_parent_id = 0;
     idle_env->env_type = ENV_TYPE_IDLE;
