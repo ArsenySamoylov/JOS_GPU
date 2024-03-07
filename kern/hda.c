@@ -133,7 +133,11 @@ init_hda(struct pci_func *pcif) {
     }
     uintptr_t addr = get_bar(base_addrs, 0);
     if (is_bar_mmio(base_addrs, 0)) {
-        map_addr_early_boot(addr, addr, HUGE_PAGE_SIZE);
+        int res = map_physical_region(&kspace, addr, addr, HUGE_PAGE_SIZE,
+                                      PROT_W | PROT_R | MAP_USER_MMIO);
+        if (res < 0) {
+            return;
+        }
     }
     hda_device.regs = (volatile struct hda_reg *)addr;
     hda_device.regs->global_control &= ~1U;

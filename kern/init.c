@@ -129,7 +129,7 @@ early_boot_pml4_init(void) {
 
 void
 i386_init(void) {
-
+    asm volatile("cli");
     early_boot_pml4_init();
 
     /* Initialize the console.
@@ -162,8 +162,6 @@ i386_init(void) {
     /* Choose the timer used for scheduling: hpet or pit */
     timers_schedule("hpet1");
 
-    asm volatile("cli");
-    trap_init();
     pci_init();
     asm volatile("sti");
     

@@ -141,7 +141,13 @@ setup_queue(struct virtq *queue, volatile struct virtio_pci_common_cfg_t *cfg_he
 void
 init_gpu(struct pci_func *pcif) {
     // Map GPU MMIO
-    map_addr_early_boot(GPU_MMIO_ADDR_START, GPU_MMIO_ADDR_START, GPU_MMIO_SIZE);
+    int res = map_physical_region(&kspace, GPU_MMIO_ADDR_START,
+                                  GPU_MMIO_ADDR_START, GPU_MMIO_SIZE,
+                                  PROT_W | PROT_R | MAP_USER_MMIO);
+    if (res < 0) {
+        return;
+    }
+    //map_addr_early_boot(GPU_MMIO_ADDR_START, GPU_MMIO_ADDR_START, GPU_MMIO_SIZE);
 
     // PCI BAR's
     uint32_t base_addrs[6];
