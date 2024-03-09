@@ -117,7 +117,7 @@ trap_init(void) {
     idt[T_PGFLT].gd_ist = 1;
 
     extern void syscall_hdlr();
-    idt[T_SYSCALL] = GATE(0, GD_KT, &syscall_hdlr, 0);
+    idt[T_SYSCALL] = GATE(0, GD_KT, &syscall_hdlr, 3);
     
     /* Per-CPU setup */
     trap_init_percpu();
