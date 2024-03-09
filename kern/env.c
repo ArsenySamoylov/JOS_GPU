@@ -335,8 +335,9 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
     if ((uint8_t*)ph > binary + size)
         return -E_INVALID_EXE;
     
-    for (int i = 0; i < elf->e_phnum; i++, ph++)
-        {
+    struct AddressSpace* curenv_space = switch_address_space(&env->address_space);
+
+    for (int i = 0; i < elf->e_phnum; i++, ph++) {
         if (ph->p_type != ELF_PROG_LOAD)
             continue;
 
@@ -345,19 +346,17 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
             return -E_INVALID_EXE;
         }
         
-        int res;
-        res = map_physical_region(&kspace, ph->p_va, ph->p_pa, 
-                              ph->p_memsz, PROT_W | PROT_R | PROT_X);    
-        assert(!res);
+        map_region(&env->address_space, ROUNDDOWN(ph->p_va, PAGE_SIZE), NULL, 0, 
+                        ROUNDUP(ph->p_memsz, PAGE_SIZE), PROT_RWX | PROT_USER_ | ALLOC_ZERO);
 
-        memcpy((void*) ph->p_va, binary + ph->p_offset, ph->p_filesz);
-        memset((void*) (ph->p_va + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
-        // cprintf("%s: maping segment p_va:%p\n", __func__, (void*)ph->p_va);
-        }
+        nosan_memcpy((void*) ph->p_va, (const void*) (binary + ph->p_offset), ph->p_filesz);
+    }
 
-    env->env_tf.tf_rip    = elf->e_entry;
-    // env->env_tf.tf_rflags |= elf->e_flags; <- this breaks Lab 4
-    // cprintf("%s: entry_point:%p\n", __func__, (void*)elf->e_entry);
+    env->env_tf.tf_rip = elf->e_entry;
+
+    map_region(&env->address_space, USER_STACK_TOP - USER_STACK_SIZE, NULL, 0, USER_STACK_SIZE, PROT_R | PROT_W | PROT_USER_ | ALLOC_ZERO);
+    switch_address_space(curenv_space);
+
     int status = bind_functions(env, binary, size, elf->e_entry, elf->e_entry + 0);
     if (status) {
       cprintf("Couldn't bind functions -%i\n", status);
