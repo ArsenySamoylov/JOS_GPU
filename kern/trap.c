@@ -118,6 +118,14 @@ trap_init(void) {
 
     extern void syscall_hdlr();
     idt[T_SYSCALL] = GATE(0, GD_KT, &syscall_hdlr, 3);
+    extern void brkptr_hdlr();
+    idt[T_BRKPT] = GATE(0, GD_KT, &brkptr_hdlr, 3);
+
+
+    extern void divide_hdlr();
+    idt[T_DIVIDE] = GATE(0, GD_KT, &divide_hdlr, 0);
+    extern void gpflt_hdlr();
+    idt[T_GPFLT] = GATE(0, GD_KT, &gpflt_hdlr, 0);
     
     /* Per-CPU setup */
     trap_init_percpu();
@@ -236,6 +244,7 @@ trap_dispatch(struct Trapframe *tf) {
         return;
     case T_BRKPT:
         // LAB 8: Your code here.
+        monitor(tf);
         return;
     case IRQ_OFFSET + IRQ_SPURIOUS:
         /* Handle spurious interrupts

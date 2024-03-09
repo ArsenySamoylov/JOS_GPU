@@ -437,6 +437,10 @@ env_destroy(struct Env *env) {
     /* Reset in_page_fault flags in case *current* environment
      * is getting destroyed after performing invalid memory access. */
     // LAB 8: Your code here
+    if (curenv == env) {
+        in_page_fault = false;
+    }
+    
 }
 
 #ifdef CONFIG_KSPACE

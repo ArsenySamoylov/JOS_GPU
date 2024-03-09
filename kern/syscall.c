@@ -55,9 +55,17 @@ sys_getenvid(void) {
 static int
 sys_env_destroy(envid_t envid) {
     // LAB 8: Your code here.
+    struct Env* prey;
+    int res = envid2env(envid, &prey, true);
+    if (res) {
+        return -E_BAD_ENV;
+    }
 
-#if 0 /* TIP: Use this snippet to log required for passing grade tests info */
+    env_destroy(prey);
+
+#if 1 /* TIP: Use this snippet to log required for passing grade tests info */
     if (trace_envs) {
+        struct Env* env = prey;
         cprintf(env == curenv ?
                         "[%08x] exiting gracefully\n" :
                         "[%08x] destroying %08x\n",
