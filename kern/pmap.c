@@ -767,7 +767,7 @@ memcpy_page(struct AddressSpace *dst, uintptr_t va, struct Page *page) {
 
     struct AddressSpace *const current = switch_address_space(dst);
 
-    const void *const src = KADDR(page->addr);
+    void *const src = KADDR(page->addr);
     const size_t size = CLASS_SIZE(page->class);
 
     set_wp(0);
