@@ -98,14 +98,10 @@ env_init(void) {
     /* Map envs to UENVS read-only,
      * but user-accessible (with PROT_USER_ set) */
     // LAB 8: Your code here
-    assert(current_space);
-    
-    const size_t size = ROUNDUP(NENV * sizeof(*envs), PAGE_SIZE);
-    envs = kzalloc_region(size);
+    envs = kzalloc_region(NENV * sizeof(*envs));
     assert(envs);
 
-    // TODO
-    int res = map_region(current_space, UENVS, current_space, (uintptr_t) envs, size, PROT_R | PROT_USER_);
+    int res = map_region(&kspace, UENVS, &kspace, (uintptr_t) envs, NENV * sizeof(*envs), PROT_R | PROT_USER_);
     assert(!res);
 
     /* Set up envs array */
