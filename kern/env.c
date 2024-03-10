@@ -349,7 +349,7 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
         map_region(&env->address_space, ROUNDDOWN(ph->p_va, PAGE_SIZE), NULL, 0, 
                         ROUNDUP(ph->p_memsz, PAGE_SIZE), PROT_RWX | PROT_USER_ | ALLOC_ZERO);
 
-        nosan_memcpy((void*) ph->p_va, (const void*) (binary + ph->p_offset), ph->p_filesz);
+        nosan_memcpy((void*) ph->p_va, (void*) (binary + ph->p_offset), ph->p_filesz);
     }
 
     env->env_tf.tf_rip = elf->e_entry;

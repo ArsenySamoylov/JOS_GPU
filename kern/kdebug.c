@@ -53,7 +53,30 @@ load_user_dwarf_info(struct Dwarf_Addrs *addrs) {
 
     /* Load debug sections from curenv->binary elf image */
     // LAB 8: Your code here
-    (void)sections;
+    const struct Elf* elf = (struct Elf*) binary;
+    const struct Secthdr* sh = (struct Secthdr*) (binary + elf->e_shoff);
+
+    assert(elf->e_shstrndx != ELF_SHN_UNDEF);
+    const struct Secthdr* sh_strtab = sh + elf->e_shstrndx;  
+    const char* sh_strtab_ptr = (char*) (binary + sh_strtab->sh_offset);
+
+    for (int i = 0; i < elf->e_shnum; ++i, ++sh) {
+      if (sh->sh_type != ELF_SHT_PROGBITS) {
+        continue;
+      }
+
+      const char* section_name = sh_strtab_ptr + sh->sh_name;
+      // cprintf("Sh name: %s\n", section_name);
+      for (int j = 0; j < sizeof(sections) / sizeof(*sections); ++j) {
+        if (strcmp(sections[j].name, section_name)){
+          continue;
+        }
+        
+        *(sections[j].start) = binary + sh->sh_offset;
+        *(sections[j].end)   = binary + sh->sh_offset + sh->sh_size;
+         
+        } 
+    }
 }
 
 #define UNKNOWN       "<unknown>"
@@ -82,7 +105,7 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
      * Make sure that you fully understand why it is necessary. */
 
     // LAB 8: Your code here:
-
+    struct AddressSpace* current = switch_address_space(&kspace);
     /* Load dwarf section pointers from either
      * currently running program binary or use
      * kernel debug info provided by bootloader
@@ -92,12 +115,15 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
     // LAB 8: Your code here:
 
     struct Dwarf_Addrs addrs;
-    load_kernel_dwarf_info(&addrs);
+    if (addr >= KERN_BASE_ADDR) {
+      load_kernel_dwarf_info(&addrs);
+    } else {
+      load_user_dwarf_info(&addrs);
+    }
 
     Dwarf_Off offset = 0, line_offset = 0;
     int res = info_by_address(&addrs, addr, &offset);
     if (res < 0) goto error;
-
     char *tmp_buf = NULL;
     res = file_name_by_info(&addrs, offset, &tmp_buf, &line_offset);
     if (res < 0) goto error;
@@ -124,6 +150,7 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
     info->rip_fn_addr = fn_offset;
 
 error:
+    switch_address_space(current);
     return res;
 }
 
