@@ -247,7 +247,7 @@ trap_dispatch(struct Trapframe *tf) {
     case T_PGFLT:
         /* Handle processor exceptions. */
         // LAB 9: Your code here.
-        return;
+        page_fault_handler(tf);
     case T_BRKPT:
         // LAB 8: Your code here.
         monitor(tf);
@@ -368,7 +368,6 @@ trap(struct Trapframe *tf) {
 static _Noreturn void
 page_fault_handler(struct Trapframe *tf) {
     uintptr_t cr2 = rcr2();
-    (void)cr2;
 
     /* Handle kernel-mode page faults. */
     if (!(tf->tf_err & FEC_U)) {
@@ -407,6 +406,11 @@ page_fault_handler(struct Trapframe *tf) {
      *   To change what the user environment runs, modify 'curenv->env_tf'
      *   (the 'tf' variable points at 'curenv->env_tf'). */
 
+    if (!curenv->env_pgfault_upcall) {
+        cprintf("user fault va: %p\n", (void*)cr2);
+        env_destroy(curenv);
+        sched_yield();
+    }
 
     static_assert(UTRAP_RIP == offsetof(struct UTrapframe, utf_rip), "UTRAP_RIP should be equal to RIP offset");
     static_assert(UTRAP_RSP == offsetof(struct UTrapframe, utf_rsp), "UTRAP_RSP should be equal to RSP offset");
@@ -414,26 +418,40 @@ page_fault_handler(struct Trapframe *tf) {
     /* Force allocation of exception stack page to prevent memcpy from
      * causing pagefault during another pagefault */
     // LAB 9: Your code here:
-
-    /* Force allocate exception stack page to prevent memcpy from
-     * causing pagefault during another pagefault */
-    // LAB 9: Your code here:
+    int status = force_alloc_page(&curenv->address_space, USER_EXCEPTION_STACK_TOP - PAGE_SIZE , MAX_ALLOCATION_CLASS);
+    if (status)
+        panic("Force alloc failed\n");
 
     /* Assert existance of exception stack */
     // LAB 9: Your code here:
-
+    user_mem_assert(curenv, (void*)(USER_EXCEPTION_STACK_TOP - PAGE_SIZE), PAGE_SIZE, PROT_W | PROT_R | PROT_USER_);
+    
     /* Build local copy of UTrapframe */
     // LAB 9: Your code here:
-
+    struct UTrapframe frame = {cr2, tf->tf_err, tf->tf_regs, tf->tf_rip, tf->tf_rflags, tf->tf_rsp};
+   
     /* And then copy it userspace (nosan_memcpy()) */
     // LAB 9: Your code here:
+    uintptr_t frame_addr;
+    if (tf->tf_rsp < USER_EXCEPTION_STACK_TOP && 
+        tf->tf_rsp > USER_EXCEPTION_STACK_TOP - PAGE_SIZE) {
+        const int SCRATCH_WORK = sizeof(void*);
+        frame_addr = tf->tf_rsp - SCRATCH_WORK; 
+    } else {
+        frame_addr = USER_EXCEPTION_STACK_TOP;
+    }
+
+    frame_addr -= sizeof(frame);
+    nosan_memcpy((void*)frame_addr, &frame, sizeof(frame));
 
     /* Reset in_page_fault flag */
     // LAB 9: Your code here:
+    in_page_fault = 0;
 
     /* Rerun current environment */
     // LAB 9: Your code here:
+    tf->tf_rip = (uintptr_t)curenv->env_pgfault_upcall;
+    tf->tf_rsp = frame_addr;
 
-    while (1)
-        ;
+    env_run(curenv);
 }

@@ -42,7 +42,12 @@ add_pgfault_handler(pf_handler_t handler) {
     if (!_pfhandler_inititiallized) {
         /* First time through! */
         // LAB 9: Your code here:
-        goto end;
+        res = sys_alloc_region(0, (void*)(USER_EXCEPTION_STACK_TOP - PAGE_SIZE), PAGE_SIZE, PROT_W | PROT_R);
+        assert(res == 0);
+        
+        res = sys_env_set_pgfault_upcall(0, _pgfault_upcall);
+        assert(res == 0);
+
         _pfhandler_inititiallized = 1;
     }
 
@@ -54,7 +59,6 @@ add_pgfault_handler(pf_handler_t handler) {
     else
         _pfhandler_vec[_pfhandler_off++] = handler;
 
-end:
     if (res < 0) panic("set_pgfault_handler: %i", res);
     return res;
 }

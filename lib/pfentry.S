@@ -29,6 +29,7 @@
 #
 # We then have call up to the appropriate page fault handler in C
 # code, pointed to by the global variable '_pgfault_handler'.
+.set UTF_SIZE, 160 
 
 .text
 .globl _pgfault_upcall
@@ -65,18 +66,23 @@ _pgfault_upcall:
     # ways as registers become unavailable as scratch space.
 
     # LAB 9: Your code here
+    mov (%rsp), %rax               # get utf_fault_va 
+    mov (UTF_SIZE-8)(%rsp), %rbx   # get old_rsp
+    sub $8, %rbx                   # 'push' ret addr
+    mov %rax, (%rbx)               # set return addr
 
     # Restore the trap-time registers.  After you do this, you
     # can no longer modify any general-purpose registers (use POPA macro).
     # LAB 9: Your code here
+    POPA
 
     # Restore rflags from the stack.  After you do this, you can
     # no longer use arithmetic operations or anything else that
     # modifies rflags.
     # LAB 9: Your code here
-
+    popf
     # Switch back to the adjusted trap-time stack.
     # LAB 9: Your code here
-
+    pop %rsp
     # Return to re-execute the instruction that faulted.
     ret
