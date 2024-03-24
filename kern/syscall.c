@@ -80,6 +80,7 @@ sys_env_destroy(envid_t envid) {
 static void
 sys_yield(void) {
     // LAB 9: Your code here
+    sched_yield();
 }
 
 /* Allocate a new environment.
@@ -95,7 +96,17 @@ sys_exofork(void) {
      * will appear to return 0. */
 
     // LAB 9: Your code here
-    return 0;
+    struct Env* nenv;
+    assert(curenv);
+    int status = env_alloc(&nenv, curenv->env_id, ENV_TYPE_USER);
+    if (status)
+        return status;
+
+    nenv->env_status = ENV_NOT_RUNNABLE;
+    nenv->env_tf = curenv->env_tf;
+    nenv->env_tf.tf_regs.reg_rax = 0;
+
+    return nenv->env_id;
 }
 
 /* Set envid's env_status to status, which must be ENV_RUNNABLE
@@ -106,7 +117,7 @@ sys_exofork(void) {
  *      or the caller doesn't have permission to change envid.
  *  -E_INVAL if status is not a valid status for an environment. */
 static int
-sys_env_set_status(envid_t envid, int status) {
+sys_env_set_status(envid_t envid, int env_status) {
     /* Hint: Use the 'envid2env' function from kern/env.c to translate an
      * envid to a struct Env.
      * You should set envid2env's third argument to 1, which will
@@ -114,7 +125,15 @@ sys_env_set_status(envid_t envid, int status) {
      * envid's status. */
 
     // LAB 9: Your code here
+    if (env_status != ENV_RUNNABLE && env_status != ENV_NOT_RUNNABLE)
+        return -E_INVAL;
 
+    struct Env* env;
+    int status = envid2env(envid, &env, true);
+    if (status) 
+        return status;
+
+    env->env_status = env_status;
     return 0;
 }
 
@@ -129,7 +148,14 @@ sys_env_set_status(envid_t envid, int status) {
 static int
 sys_env_set_pgfault_upcall(envid_t envid, void *func) {
     // LAB 9: Your code here:
+    assert(func);
 
+    struct Env* env;
+    int status = envid2env(envid, &env, true);
+    if (status) 
+        return status;
+
+    env->env_pgfault_upcall = func;
     return 0;
 }
 
@@ -159,8 +185,20 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func) {
 static int
 sys_alloc_region(envid_t envid, uintptr_t addr, size_t size, int perm) {
     // LAB 9: Your code here:
+    struct Env* env;
+    int status = envid2env(envid, &env, true);
+    if (status) 
+        return status;
+    
+    if (addr >= MAX_USER_ADDRESS || addr % PAGE_SIZE != 0)
+        return -E_INVAL;
 
-    return 0;
+    if (perm & ~PROT_ALL)
+        return -E_INVAL;
+
+    perm |= PROT_LAZY | ALLOC_ZERO | PROT_USER_;
+    status = map_region(&env->address_space, addr, NULL, 0, size, perm);
+    return status;
 }
 
 /* Map the region of memory at 'srcva' in srcenvid's address space
@@ -187,8 +225,31 @@ static int
 sys_map_region(envid_t srcenvid, uintptr_t srcva,
                envid_t dstenvid, uintptr_t dstva, size_t size, int perm) {
     // LAB 9: Your code here
+    struct Env* src_env;
+    int status = envid2env(srcenvid, &src_env, true);
+    if (status) 
+        return status;
+    
+    struct Env* dst_env;
+    status = envid2env(dstenvid, &dst_env, true);
+    if (status) 
+        return status;
+    
+    if (srcva  >= MAX_USER_ADDRESS || srcva % PAGE_SIZE != 0)
+        return -E_INVAL;
+    if (dstva >= MAX_USER_ADDRESS || dstva % PAGE_SIZE != 0)
+        return -E_INVAL;
+    if (perm & (~PROT_ALL))
+        return -E_INVAL;
+    if (perm & (ALLOC_ZERO | ALLOC_ONE))
+        return -E_INVAL;
 
-    return 0;
+    // status = user_mem_check(src_env, (void*) srcva, size, perm);
+    if (status)
+        return status;
+
+    status = map_region(&dst_env->address_space, dstva, &src_env->address_space, srcva, size, perm | PROT_USER_);
+    return status;
 }
 
 /* Unmap the region of memory at 'va' in the address space of 'envid'.
@@ -203,7 +264,15 @@ sys_unmap_region(envid_t envid, uintptr_t va, size_t size) {
     /* Hint: This function is a wrapper around unmap_region(). */
 
     // LAB 9: Your code here
+    struct Env* env;
+    int status = envid2env(envid, &env, true);
+    if (status) 
+        return status;
 
+     if (va >= MAX_USER_ADDRESS || va % PAGE_SIZE != 0)
+        return -E_INVAL;
+
+    unmap_region(&env->address_space, va, size);
     return 0;
 }
 
@@ -227,6 +296,24 @@ sys_map_physical_region(uintptr_t pa, envid_t envid, uintptr_t va, size_t size, 
     // LAB 10: Your code here
     // TIP: Use map_physical_region() with (perm | PROT_USER_ | MAP_USER_MMIO)
     //      And don't forget to validate arguments as always.
+    struct Env* env;
+    int status = envid2env(envid, &env, true);
+    if (status) 
+        return status;
+
+    if (env->env_type != ENV_TYPE_FS) 
+        return -E_INVAL;
+
+    if (pa >= MAX_USER_ADDRESS || pa % PAGE_SIZE != 0)
+        return -E_INVAL;
+    if (size % PAGE_SIZE != 0)
+        return -E_INVAL;
+    if (va >= MAX_USER_ADDRESS || va % PAGE_SIZE != 0)
+        return -E_INVAL;
+    if (perm & ~PROT_ALL || perm & (PROT_SHARE | PROT_COMBINE | PROT_LAZY))
+        return -E_INVAL;
+    
+    status = map_physical_region(&env->address_space, va, pa, size, perm | PROT_USER_ | MAP_USER_MMIO);
     return 0;
 }
 
@@ -320,8 +407,32 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
             return sys_getenvid();
         case SYS_env_destroy:
             return sys_env_destroy(a1);
+        // LAB 9: Your code here
+        case SYS_alloc_region:
+            return sys_alloc_region(a1, a2, a3, a4);
+        case SYS_map_region:
+            return sys_map_region(a1, a2, a3, a4, a5, a6);
+        case SYS_map_physical_region:
+            return sys_map_physical_region(a1, a2, a3, a4, a5);
+        case SYS_unmap_region:
+            return sys_unmap_region(a1, a2, a3);
+        case SYS_region_refs:
+            return sys_region_refs(a1, a2, a3, a4);
+        case SYS_exofork:
+            return sys_exofork();
+        case SYS_env_set_status:
+            return sys_env_set_status(a1, a2);
+        case SYS_env_set_pgfault_upcall:
+            return sys_env_set_pgfault_upcall(a1, (void*)a2);
+        case SYS_yield:
+            sys_yield();
+            panic("No return!");
+            break;
+        case SYS_ipc_try_send:
+            return sys_ipc_try_send(a1, a2, a3, a4, a5);
+        case SYS_ipc_recv:
+            return sys_ipc_recv(a1, a2);
     }
-    // LAB 9: Your code here
 
     return -E_NO_SYS;
 }

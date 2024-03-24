@@ -763,12 +763,13 @@ memcpy_page(struct AddressSpace *dst, uintptr_t va, struct Page *page) {
     assert(current_space);
     assert(dst);
 
-    assert(page->state == RESERVED_NODE);
-
     struct AddressSpace *const current = switch_address_space(dst);
 
-    void *const src = KADDR(page->addr);
+    void *const src = KADDR(page2pa(page));
     const size_t size = CLASS_SIZE(page->class);
+    
+    // cprintf("<%p> Copying to va=%p, from src=%p, size=%zx\n", dst, (void*) va, src, size);
+    // cprintf("src pa: %p\n", (void*) page->addr);
 
     set_wp(0);
     nosan_memcpy((void *)va, src, size);
@@ -1257,6 +1258,8 @@ force_alloc_page(struct AddressSpace *spc, uintptr_t va, int maxclass) {
         page_ref(phy);
         res = alloc_composite_page(spc, va, phy->class, page->state & PROT_ALL & ~PROT_LAZY);
         if (!res) memcpy_page(spc, va, phy);
+        else 
+            panic("Ebanyi pizdex\n");
         page_unref(phy);
     }
 
