@@ -419,8 +419,11 @@ page_fault_handler(struct Trapframe *tf) {
      * causing pagefault during another pagefault */
     // LAB 9: Your code here:
     int status = force_alloc_page(&curenv->address_space, USER_EXCEPTION_STACK_TOP - PAGE_SIZE , MAX_ALLOCATION_CLASS);
-    if (status)
-        panic("Force alloc failed\n");
+    if (status) {
+        // TODO
+        // force_alloc should be called only once per env
+        // panic("Force alloc failed\n");
+    }
 
     /* Assert existance of exception stack */
     // LAB 9: Your code here:

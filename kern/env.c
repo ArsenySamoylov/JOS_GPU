@@ -445,8 +445,6 @@ env_destroy(struct Env *env) {
     // LAB 8: Your code here
     if (curenv == env) {
         in_page_fault = false;
-        curenv = NULL;
-        sched_yield();
     }
     
 }

@@ -61,8 +61,6 @@ sys_env_destroy(envid_t envid) {
         return -E_BAD_ENV;
     }
 
-    env_destroy(prey);
-
 #if 1 /* TIP: Use this snippet to log required for passing grade tests info */
     if (trace_envs) {
         struct Env* env = prey;
@@ -73,6 +71,7 @@ sys_env_destroy(envid_t envid) {
     }
 #endif
 
+    env_destroy(prey);
     return 0;
 }
 
