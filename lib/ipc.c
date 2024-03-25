@@ -19,11 +19,31 @@
  *   If 'pg' is null, pass sys_ipc_recv a value that it will understand
  *   as meaning "no page".  (Zero is not the right value, since that's
  *   a perfectly valid place to map a page.) */
+
+ // I don't care about setting *fromenv & *perm to zero in error case. IMHO it's not reasonable
 int32_t
 ipc_recv(envid_t *from_env_store, void *pg, size_t *size, int *perm_store) {
     // LAB 9: Your code here:
+    int status;
 
-    return -1;
+    if (pg) {
+        assert(size);
+        status = sys_ipc_recv(pg, *size);
+    } else {
+        status = sys_ipc_recv((void*)MAX_USER_ADDRESS, 0);
+    }
+
+    if (status)
+        return status;
+    
+    if(from_env_store)
+        *from_env_store = thisenv->env_ipc_from;
+    if(perm_store)
+        *perm_store     = thisenv->env_ipc_perm;
+    if(size)
+        *size           = thisenv->env_ipc_maxsz;
+
+    return thisenv->env_ipc_value;
 }
 
 /* Send 'val' (and 'pg' with 'perm', if 'pg' is nonnull) to 'toenv'.
@@ -37,6 +57,18 @@ ipc_recv(envid_t *from_env_store, void *pg, size_t *size, int *perm_store) {
 void
 ipc_send(envid_t to_env, uint32_t val, void *pg, size_t size, int perm) {
     // LAB 9: Your code here:
+    if (!pg) {
+        pg = (void*) MAX_USER_ADDRESS;
+        assert(size == 0);
+    }
+
+    int status;
+    while ((status = sys_ipc_try_send(to_env, val, pg, size, perm))) {
+        if (status != -E_IPC_NOT_RECV)
+            panic("%i", status);
+        
+        sys_yield();
+    }
 }
 
 /* Find the first environment of the given type.  We'll use this to

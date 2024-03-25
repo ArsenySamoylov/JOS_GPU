@@ -359,7 +359,39 @@ sys_map_physical_region(uintptr_t pa, envid_t envid, uintptr_t va, size_t size, 
 static int
 sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, int perm) {
     // LAB 9: Your code here
+    struct Env* target;
+    int status = envid2env(envid, &target, false);
+    if (status)
+        return status;
 
+    if (!target->env_ipc_recving)
+        return -E_IPC_NOT_RECV;
+    
+    if (srcva < MAX_USER_ADDRESS) {
+        if(srcva & CLASS_MASK(0)) 
+            return -E_INVAL;
+        
+        // TODO check perm
+        // TODO check that srcva mapped
+        target->env_ipc_maxsz = MIN(target->env_ipc_maxsz, size);
+        
+        // TODO unmap dstva if it already mapped
+        status = map_region(&target->address_space, target->env_ipc_dstva, &curenv->address_space, srcva, target->env_ipc_maxsz, perm);
+        if (status)
+            return status;
+    } else {
+        if (perm) {
+            cprintf("Warning: maping, but perm not 0\n"); 
+            perm = 0;
+            }
+    }
+
+    target->env_ipc_recving = false; 
+    target->env_ipc_value   = value;
+    target->env_ipc_from    = curenv->env_id;
+    target->env_ipc_perm    = perm;
+
+    target->env_status = ENV_RUNNABLE;
     return 0;
 }
 
@@ -379,8 +411,23 @@ sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, in
 static int
 sys_ipc_recv(uintptr_t dstva, uintptr_t maxsize) {
     // LAB 9: Your code here
+    if (dstva < MAX_USER_ADDRESS) {
+     if (dstva & CLASS_MASK(0))
+        return -E_INVAL;
+     if (maxsize == 0 || maxsize & CLASS_MASK(0))
+        return -E_INVAL;
+    }
 
-    return 0;
+    curenv->env_ipc_maxsz = maxsize;
+    curenv->env_ipc_dstva = dstva;
+    
+    curenv->env_status = ENV_NOT_RUNNABLE;
+    
+    curenv->env_ipc_recving = true; 
+
+    // yield
+    curenv->env_tf.tf_regs.reg_rax = 0; 
+    sched_yield(); // no return !
 }
 
 static int
