@@ -266,7 +266,7 @@ trap_dispatch(struct Trapframe *tf) {
         // LAB 4: Your code here
         // LAB 5: Your code here
         timer_for_schedule->handle_interrupts();
-        return;
+        sched_yield(); // no return
     default:
         print_trapframe(tf);
         if (!(tf->tf_cs & 3))
@@ -405,9 +405,13 @@ page_fault_handler(struct Trapframe *tf) {
      *   user_mem_assert() and env_run() are useful here.
      *   To change what the user environment runs, modify 'curenv->env_tf'
      *   (the 'tf' variable points at 'curenv->env_tf'). */
+    
+    // #ifdef TEST
+    user_mem_assert(curenv, (void*) (USER_EXCEPTION_STACK_TOP - 1), 1, PROT_W | PROT_R);
+    // #endif
 
     if (!curenv->env_pgfault_upcall) {
-        cprintf("user fault va: %p\n", (void*)cr2);
+        user_mem_assert(curenv, (void*)cr2, PAGE_SIZE, PROT_ALL); // 
         env_destroy(curenv);
         sched_yield();
     }
@@ -445,6 +449,7 @@ page_fault_handler(struct Trapframe *tf) {
     }
 
     frame_addr -= sizeof(frame);
+    user_mem_assert(curenv, (void*) frame_addr, 1, PROT_W | PROT_R); // check uxstack
     nosan_memcpy((void*)frame_addr, &frame, sizeof(frame));
 
     /* Reset in_page_fault flag */
