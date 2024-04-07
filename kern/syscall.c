@@ -200,10 +200,15 @@ sys_alloc_region(envid_t envid, uintptr_t addr, size_t size, int perm) {
     if (addr >= MAX_USER_ADDRESS || addr % PAGE_SIZE != 0)
         return -E_INVAL;
 
-    if (perm & ~PROT_ALL)
+    if ((perm & ~(ALLOC_ONE | ALLOC_ZERO)) != (perm & PROT_ALL)) {
         return -E_INVAL;
+    }
 
-    perm |= PROT_LAZY | ALLOC_ZERO | PROT_USER_;
+    if (!(perm & ALLOC_ONE)) {
+        perm |= ALLOC_ZERO;
+    }
+
+    perm |= PROT_USER_ | PROT_LAZY;
     status = map_region(&env->address_space, addr, NULL, 0, size, perm);
     return status;
 }
