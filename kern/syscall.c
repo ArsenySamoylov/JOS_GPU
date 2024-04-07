@@ -389,7 +389,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, in
         target->env_ipc_maxsz = MIN(target->env_ipc_maxsz, size);
         
         // TODO unmap dstva if it already mapped
-        status = map_region(&target->address_space, target->env_ipc_dstva, &curenv->address_space, srcva, target->env_ipc_maxsz, perm);
+        status = map_region(&target->address_space, target->env_ipc_dstva, &curenv->address_space, srcva, target->env_ipc_maxsz, perm | PROT_USER_);
         if (status)
             return status;
     } else {
