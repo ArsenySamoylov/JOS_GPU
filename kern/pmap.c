@@ -1983,12 +1983,12 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm) {
     return 0;
 }
 
-void
-user_mem_assert(struct Env *env, const void *va, size_t len, int perm) {
+void 
+User_mem_assert(struct Env *env, const void *va, size_t len, int perm, const char* file, int line) {
     if (user_mem_check(env, va, len, perm | PROT_USER_) < 0) {
-        cprintf("[%08x] user_mem_check assertion failure for "
+        cprintf("[%08x] (%s:%d) user_mem_check assertion failure for "
                 "va=%016zx ip=%016zx\n",
-                env->env_id, user_mem_check_addr, env->env_tf.tf_rip);
+                env->env_id, file, line, user_mem_check_addr, env->env_tf.tf_rip);
         env_destroy(env); /* may not return */
     }
 }
