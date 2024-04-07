@@ -14,7 +14,7 @@ enum {
     SYS_region_refs,
     SYS_exofork,
     SYS_env_set_status,
-    // SYS_env_set_trapframe, // WTF? Unused
+    SYS_env_set_trapframe,
     SYS_env_set_pgfault_upcall,
     SYS_yield,
     SYS_ipc_try_send,

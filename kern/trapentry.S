@@ -66,15 +66,14 @@ name:                               \
 .type _alltraps, @function;
 .align 2
 _alltraps:
-  subq $16,%rsp
-  movw %ds,8(%rsp)
-  movw %es,(%rsp)
-  PUSHA
-  movl $GD_KD,%eax
-  movw %ax,%ds
-  movw %ax,%es
-  movq %rsp, %rdi
-  call trap
+    # LAB 8: Your code here
+    # Complete `struct Trapframe' on stack
+    # NOTE: Members after tf_paddind4 already on stack.
+    #       For struct PushRegs you can use PUSHA macro.
+
+    # LAB 8: Your code here
+    # Invoke `trap' with a pointer to struct trap as an argument.
+
   jmp .
 
 # LAB 8: Your code here
