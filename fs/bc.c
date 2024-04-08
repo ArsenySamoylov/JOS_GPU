@@ -33,6 +33,13 @@ bc_pgfault(struct UTrapframe *utf) {
      * Hint: first round addr to page boundary. fs/ide.c has code to read
      * the disk. */
     // LAB 10: Your code here
+    void* disk_va = diskaddr(blockno);
+
+    int res = sys_alloc_region(CURENVID, disk_va, BLKSIZE, PTE_SYSCALL);
+    assert(!res);
+
+    res = nvme_read(((uint64_t) blockno) * BLKSECTS, disk_va, BLKSECTS);
+    assert(!res);
 
     return 1;
 }
@@ -55,10 +62,22 @@ flush_block(void *addr) {
         panic("reading non-existent block %08x out of %08x\n", blockno, super->s_nblocks);
 
     // LAB 10: Your code here.
-    (void)res;
+    addr = diskaddr(blockno);
+    if(!is_page_present(addr)) {
+        cprintf("Not present]n");
+        return;
+    }
 
+    if(!is_page_dirty(addr)) {
+        cprintf("Not dirty\n");
+        return;
+    }
 
-    assert(!is_page_dirty(addr));
+    res = nvme_write(((uint64_t)blockno) * BLKSECTS, addr, BLKSECTS);
+    assert(!res);
+
+    res = sys_map_region(CURENVID, addr, CURENVID, addr, BLKSIZE, PTE_SYSCALL);
+    assert(!res);
 }
 
 /* Test that the block cache works, by smashing the superblock and
@@ -69,11 +88,12 @@ check_bc(void) {
 
     /* Back up super block */
     memmove(&backup, diskaddr(1), sizeof backup);
-
+    cprintf("magic: %x\n", backup.s_magic);
     /* Smash it */
     strcpy(diskaddr(1), "OOPS!\n");
     flush_block(diskaddr(1));
     assert(is_page_present(diskaddr(1)));
+    // cprintf("%x\n", get_prot(diskaddr(1)));
     assert(!is_page_dirty(diskaddr(1)));
 
     /* Clear it out */

@@ -1514,8 +1514,11 @@ init_address_space(struct AddressSpace *space) {
     /* Allocte page table with alloc_pt into space->cr3
      * (remember to clean flag bits of result with PTE_ADDR) */
     // LAB 8: Your code here
-    alloc_pt(&space->cr3);
-    space->cr3 = PTE_ADDR(space->cr3);
+    pte_t page_table = 0;
+    int res = alloc_pt(&page_table);
+    assert(!res);
+
+    space->cr3 = PTE_ADDR(page_table);
 
     /* Put its kernel virtual address to space->pml4 */
     // LAB 8: Your code here
@@ -1528,8 +1531,8 @@ init_address_space(struct AddressSpace *space) {
 
     /* Initialize UVPT */
     // LAB 8: Your code here
-    // TODO what to do???
-    
+    space->pml4[PML4_INDEX(UVPT)] = page_table;
+
     /* Why this call is required here and what does it do? */
     propagate_one_pml4(space, &kspace);
     return 0;
