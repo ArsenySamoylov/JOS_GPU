@@ -209,7 +209,14 @@ sys_alloc_region(envid_t envid, uintptr_t addr, size_t size, int perm) {
     }
 
     perm |= PROT_USER_ | PROT_LAZY;
+    cprintf("alloced: %p, %lx, CD: %x\n", (void*) addr, size, perm | PROT_CD);
+
+    // unmap_region(&env->address_space, addr, size);
     status = map_region(&env->address_space, addr, NULL, 0, size, perm);
+    if (perm | PROT_CD) {
+        force_alloc_page(&env->address_space, addr, MAX_ALLOCATION_CLASS);
+    }
+        
     return status;
 }
 
@@ -260,6 +267,7 @@ sys_map_region(envid_t srcenvid, uintptr_t srcva,
     if (status)
         return status;
 
+    // cprintf("mapped: %p, %lx\n", (void*) srcva, size);
     status = map_region(&dst_env->address_space, dstva, &src_env->address_space, srcva, size, perm | PROT_USER_);
     return status;
 }

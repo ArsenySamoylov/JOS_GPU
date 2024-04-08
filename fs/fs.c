@@ -8,6 +8,28 @@ struct Super *super;
 /* Bitmap blocks mapped in memory */
 uint32_t *bitmap;
 
+#define PCIE_DEBUG
+#ifdef PCIE_DEBUG
+#define ERROR(...)                                                           \
+    do {                                                                     \
+        cprintf("\e[31mERROR\e[0m[\e[94m%s\e[0m:%d]: ", __func__, __LINE__); \
+        cprintf(__VA_ARGS__);                                                \
+        cprintf("\n");                                                       \
+    } while (0);
+
+#define DEBUG(...)                                                           \
+    do {                                                                     \
+        cprintf("\e[34mDEBUG_FS\e[0m[\e[94m%s\e[0m:%d]: ", __func__, __LINE__); \
+        cprintf(__VA_ARGS__);                                                \
+        cprintf("\n");                                                       \
+    } while (0);
+#else
+#define DEBUG(...)
+#define ERROR(...)
+#endif
+
+#define DUMP_FILE(F) DEBUG("FILE: '%s', size: %d, f_direct = {%d, %d, %d...}", F->f_name, F->f_size, F->f_direct[0], F->f_direct[1], F->f_direct[2])
+
 /****************************************************************
  *                         Super block
  ****************************************************************/
@@ -60,6 +82,14 @@ alloc_block(void) {
      * super->s_nblocks blocks in the disk altogether. */
 
     // LAB 10: Your code here
+    for (blockno_t i = 2; i < super->s_nblocks; ++i) {
+        if (block_is_free(i)) {
+            CLRBIT(bitmap, i);
+            flush_block(bitmap + i / 32);
+            DEBUG("alloced blockno %d", i);
+            return i;
+        }
+    }
 
     return 0;
 }
@@ -112,7 +142,7 @@ fs_init(void) {
  * if necessary.
  *
  * Returns:
- *  0 on success (but note that *ppdiskbno might equal 0).
+ *  0 on success (but note that **ppdiskbno might equal 0).
  *  -E_NOT_FOUND if the function needed to allocate an indirect block, but
  *      alloc was 0.
  *  -E_NO_DISK if there's no space on the disk for an indirect block.
@@ -123,9 +153,27 @@ fs_init(void) {
 int
 file_block_walk(struct File *f, blockno_t filebno, blockno_t **ppdiskbno, bool alloc) {
     // LAB 10: Your code here
-
     *ppdiskbno = NULL;
 
+    if (filebno < NDIRECT) {
+        *ppdiskbno = f->f_direct + filebno;
+        DEBUG("'%s' filebno %d", f->f_name, filebno);
+        return 0;
+    }
+
+    if (filebno >= NDIRECT + NINDIRECT)
+        return -E_INVAL;
+
+    if (f->f_indirect == 0) {
+        if(!alloc)
+            return -E_NOT_FOUND;
+
+        f->f_indirect = alloc_block(); // is it zeroed?
+        if(f->f_indirect == 0)
+            return -E_NO_DISK;
+    }
+
+    *ppdiskbno = ((blockno_t*)diskaddr(f->f_indirect)) + (filebno - NDIRECT);
     return 0;
 }
 
@@ -140,9 +188,22 @@ file_block_walk(struct File *f, blockno_t filebno, blockno_t **ppdiskbno, bool a
 int
 file_get_block(struct File *f, blockno_t filebno, char **blk) {
     // LAB 10: Your code here
-
     *blk = NULL;
 
+    blockno_t *blockno_ptr = NULL;
+    int res = file_block_walk(f, filebno, &blockno_ptr, true);
+    if(res)
+        return res;
+    
+    if (*blockno_ptr == 0) {
+        *blockno_ptr = alloc_block();
+
+        if(*blockno_ptr == 0)
+            return -E_INVAL;
+    }
+
+    *blk = diskaddr(*blockno_ptr);
+    DEBUG("'%s' filebno %d blockno: %d", f->f_name, filebno, *blockno_ptr);
     return 0;
 }
 
@@ -260,6 +321,8 @@ walk_path(const char *path, struct File **pdir, struct File **pf, char *lastelem
     if (pdir)
         *pdir = dir;
     *pf = f;
+    // DEBUG("'%s' %p", f->f_name, f);
+    DUMP_FILE(f);
     return 0;
 }
 
@@ -399,7 +462,9 @@ void
 file_flush(struct File *f) {
     blockno_t *pdiskbno;
 
+    DEBUG("'%s': %p", f->f_name, f);    
     for (blockno_t i = 0; i < CEILDIV(f->f_size, BLKSIZE); i++) {
+        DEBUG("direct[%d] = %d ", i, f->f_direct[i]);
         if (file_block_walk(f, i, &pdiskbno, 0) < 0 ||
             pdiskbno == NULL || *pdiskbno == 0)
             continue;

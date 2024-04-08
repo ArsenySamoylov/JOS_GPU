@@ -35,7 +35,7 @@ bc_pgfault(struct UTrapframe *utf) {
     // LAB 10: Your code here
     void* disk_va = diskaddr(blockno);
 
-    int res = sys_alloc_region(CURENVID, disk_va, BLKSIZE, PTE_SYSCALL);
+    int res = sys_alloc_region(CURENVID, disk_va, BLKSIZE, PTE_SYSCALL | PTE_PCD);
     assert(!res);
 
     res = nvme_read(((uint64_t) blockno) * BLKSECTS, disk_va, BLKSECTS);
@@ -76,7 +76,7 @@ flush_block(void *addr) {
     res = nvme_write(((uint64_t)blockno) * BLKSECTS, addr, BLKSECTS);
     assert(!res);
 
-    res = sys_map_region(CURENVID, addr, CURENVID, addr, BLKSIZE, PTE_SYSCALL);
+    res = sys_map_region(CURENVID, addr, CURENVID, addr, BLKSIZE, PTE_SYSCALL | PTE_PCD);
     assert(!res);
 }
 
