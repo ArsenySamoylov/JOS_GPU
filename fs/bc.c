@@ -64,12 +64,12 @@ flush_block(void *addr) {
     // LAB 10: Your code here.
     addr = diskaddr(blockno);
     if(!is_page_present(addr)) {
-        cprintf("Not present]n");
+        // cprintf("Not present]n");
         return;
     }
 
     if(!is_page_dirty(addr)) {
-        cprintf("Not dirty\n");
+        // cprintf("Not dirty\n");
         return;
     }
 

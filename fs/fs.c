@@ -8,8 +8,8 @@ struct Super *super;
 /* Bitmap blocks mapped in memory */
 uint32_t *bitmap;
 
-#define PCIE_DEBUG
-#ifdef PCIE_DEBUG
+// #define FS_DEBUG
+#ifdef FS_DEBUG
 #define ERROR(...)                                                           \
     do {                                                                     \
         cprintf("\e[31mERROR\e[0m[\e[94m%s\e[0m:%d]: ", __func__, __LINE__); \

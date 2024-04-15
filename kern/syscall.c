@@ -15,7 +15,7 @@
 #include <kern/traceopt.h>
 
 #ifndef trace_syscalls
-#define trace_syscalls 1
+#define trace_syscalls 0
 #endif
 
 #define CAT(x, y)           PRIMITIVE_CAT(x, y)
@@ -244,7 +244,10 @@ sys_alloc_region(envid_t envid, uintptr_t addr, size_t size, int perm) {
     }
 
     perm |= PROT_USER_ | PROT_LAZY;
-    cprintf("alloced: %p, %lx, CD: %x\n", (void*) addr, size, perm | PROT_CD);
+
+    if (trace_syscalls) {
+        cprintf("alloced: %p, %lx, CD: %x\n", (void*) addr, size, perm | PROT_CD);
+    }
 
     // unmap_region(&env->address_space, addr, size);
     status = map_region(&env->address_space, addr, NULL, 0, size, perm);
@@ -436,7 +439,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, in
         if (status)
             return status;
     } else {
-        if (perm) {
+        if (perm && trace_syscalls) {
             cprintf("Warning: maping, but perm not 0\n"); 
             perm = 0;
             }
@@ -502,7 +505,10 @@ sys_region_refs(uintptr_t addr, size_t size, uintptr_t addr2, uintptr_t size2) {
     if (addr2 < MAX_USER_ADDRESS)
         res2 = region_maxref(&curenv->address_space, addr2, size2);
 
-    cprintf("%s: res1 %d, res2 %d\n", __func__, res1, res2);
+    if (trace_syscalls) {
+        cprintf("%s: res1 %d, res2 %d\n", __func__, res1, res2);
+    }
+    
     return res1-res2;
 }
 
