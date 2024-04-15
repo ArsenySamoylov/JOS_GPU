@@ -25,7 +25,14 @@ fsipc(unsigned type, void *dstva) {
 
     ipc_send(fsenv, type, &fsipcbuf, PAGE_SIZE, PROT_RW);
     size_t maxsz = PAGE_SIZE;
-    return ipc_recv(NULL, dstva, &maxsz, NULL);
+    
+    int res = ipc_recv(NULL, dstva, &maxsz, NULL);
+    if (debug) {
+        cprintf("[%08x] fsipc %d %s received: %d\n",
+                thisenv->env_id, type, (char *)&fsipcbuf, res);
+    }
+
+    return res;
 }
 
 static int devfile_flush(struct Fd *fd);
@@ -113,10 +120,15 @@ devfile_read(struct Fd *fd, void *buf, size_t n) {
      * system server. */
 
     // LAB 10: Your code here:
-    size_t res0 = 0;
-    (void)fd, (void)buf, (void)n;
+    fsipcbuf.read.req_fileid = fd->fd_file.id;
+    fsipcbuf.read.req_n      = n;
 
-    return res0;
+    int res = fsipc(FSREQ_READ, NULL);
+    if(res <0)
+        return res;
+        
+    memcpy(buf, fsipcbuf.readRet.ret_buf, res); 
+    return res; 
 }
 
 /* Write at most 'n' bytes from 'buf' to 'fd' at the current seek position.
@@ -133,10 +145,11 @@ devfile_write(struct Fd *fd, const void *buf, size_t n) {
      * potentially required. */
 
     // LAB 10: Your code here:
-    size_t res0 = 0;
-    (void)fd, (void)buf, (void)n;
+    fsipcbuf.write.req_fileid = fd->fd_file.id;
+    fsipcbuf.write.req_n      = n;
 
-    return res0;
+    memcpy(fsipcbuf.write.req_buf, buf, n);
+    return fsipc(FSREQ_WRITE, NULL);
 }
 
 /* Get file information */

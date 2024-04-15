@@ -24,6 +24,7 @@
 int32_t
 ipc_recv(envid_t *from_env_store, void *pg, size_t *size, int *perm_store) {
     // LAB 9: Your code here:
+    LIB_DEBUG("i am %x, pg: %p", thisenv->env_id, pg ? pg : NULL);
     int status;
 
     if (pg) {
@@ -57,9 +58,11 @@ ipc_recv(envid_t *from_env_store, void *pg, size_t *size, int *perm_store) {
 void
 ipc_send(envid_t to_env, uint32_t val, void *pg, size_t size, int perm) {
     // LAB 9: Your code here:
+    LIB_DEBUG("from %x to %x", thisenv->env_id ,to_env);
+    LIB_DEBUG("val: %d, pg: %p, size: %ld", val, pg, size);
     if (!pg) {
         pg = (void*) MAX_USER_ADDRESS;
-        assert(size == 0);
+        // assert(size == 0);
     }
 
     int status;
