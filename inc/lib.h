@@ -171,4 +171,24 @@ extern void (*volatile sys_yield)(void);
 #define debug 0
 #endif
 
+#if debug == 1
+#define LIB_ERROR(...)                                                           \
+    do {                                                                     \
+        cprintf("\e[31mLIB_ERROR\e[0m[\e[94m%s\e[0m:%d]: ", __func__, __LINE__); \
+        cprintf(__VA_ARGS__);                                                \
+        cprintf("\n");                                                       \
+    } while (0);
+
+#define LIB_DEBUG(...)                                                           \
+    do {                                                                     \
+        cprintf("\e[36mLIB_DEBUG\e[0m[\e[94m%s\e[0m:%d]: ", __func__, __LINE__); \
+        cprintf(__VA_ARGS__);                                                \
+        cprintf("\n");                                                       \
+    } while (0);
+#else
+#define LIB_DEBUG(...)
+#define LIB_ERROR(...)
+#endif
+
+
 #endif /* !JOS_INC_LIB_H */

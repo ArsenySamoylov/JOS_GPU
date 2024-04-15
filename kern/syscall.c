@@ -14,6 +14,41 @@
 #include <kern/trap.h>
 #include <kern/traceopt.h>
 
+#ifndef trace_syscalls
+#define trace_syscalls 1
+#endif
+
+#define CAT(x, y)           PRIMITIVE_CAT(x, y)
+#define PRIMITIVE_CAT(x, y) x##y
+
+#define PRINT_ARG(fmt, arg_name) \
+    cprintf(#arg_name "=" fmt " ", (arg_name));
+
+#define PRINT_ARGS(args)       CAT(PRINT_ARGS_1 args, END)
+#define PRINT_ARGS_1(fmt, arg) PRINT_ARG(fmt, arg) PRINT_ARGS_2
+#define PRINT_ARGS_2(fmt, arg) PRINT_ARG(fmt, arg) PRINT_ARGS_1
+#define PRINT_ARGS_1END
+#define PRINT_ARGS_2END
+
+#define TRACE_SYSCALL_ENTER(...)              \
+    do {                                      \
+        if (trace_syscalls) {                 \
+            cprintf("TRACE_SYSCALL: called %s( ", __func__); \
+            PRINT_ARGS(__VA_ARGS__);          \
+            cprintf(")\n");                   \
+        }                                     \
+    } while (0)
+
+#define TRACE_SYSCALL_LEAVE(fmt, ret, ...)                           \
+    do {                                                             \
+        if (trace_syscalls) {                                        \
+            cprintf("TRACE_SYSCALL: returning " fmt " from %s( ", (ret), __func__); \
+            PRINT_ARGS(__VA_ARGS__);                                 \
+            cprintf(") at line %d\n", __LINE__ + 1);                 \
+        }                                                            \
+    } while (0)
+
+
 /* Print a string to the system console.
  * The string is exactly 'len' characters long.
  * Destroys the environment on memory errors. */
@@ -432,11 +467,18 @@ sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, in
 static int
 sys_ipc_recv(uintptr_t dstva, uintptr_t maxsize) {
     // LAB 9: Your code here
+#define ARGS ("0x%lx", dstva)("0x%lx", maxsize)
+    TRACE_SYSCALL_ENTER(ARGS);
+
     if (dstva < MAX_USER_ADDRESS) {
-     if (dstva & CLASS_MASK(0))
+     if (dstva & CLASS_MASK(0)) {
+        TRACE_SYSCALL_LEAVE("'%i'", -E_INVAL, ARGS);
         return -E_INVAL;
-     if (maxsize == 0 || maxsize & CLASS_MASK(0))
+     }
+     if (maxsize == 0 || maxsize & CLASS_MASK(0)) {
+        TRACE_SYSCALL_LEAVE("'%i'", -E_INVAL, ARGS);
         return -E_INVAL;
+     }
     }
 
     curenv->env_ipc_maxsz = maxsize;
