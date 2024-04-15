@@ -75,6 +75,7 @@ acpi_enable(void) {
         ;
 }
 
+__attribute__((no_sanitize("undefined")))
 static void *
 acpi_find_table(const char *sign) {
     /*
