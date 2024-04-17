@@ -625,27 +625,63 @@ check_virtual_tree(struct Page *page, int class) {
     }
 }
 
+static void
+recursive_dump(struct Page *node, int class, uintptr_t vaddr,
+                            size_t depth) {
+    for (size_t i = 1; i < depth/2; ++i) {
+        cprintf("| ");
+    }
+    if (depth > 0) {
+        cprintf("+ ");
+    }
+    cprintf("vaddr [0x%lx, 0x%llx)\n", vaddr, vaddr + CLASS_SIZE(class));
+
+    for (size_t i = 0; i < depth/2; ++i) {
+        cprintf("| ");
+    }
+    cprintf("|> flags [%c%c%c]",
+            (node->state & PROT_R) ? 'R' : '-',
+            (node->state & PROT_W) ? 'W' : '-',
+            (node->state & PROT_X) ? 'X' : '-');
+
+    cprintf("[");
+    if (node->state & PROT_WC) cprintf(" wc");
+    if (node->state & PROT_CD) cprintf(" cd");
+    if (node->state & PROT_USER_) cprintf(" user");
+    if (node->state & PROT_SHARE) cprintf(" share");
+    if (node->state & PROT_LAZY) cprintf(" lasy");
+    if (node->state & PROT_COMBINE) cprintf(" combinw");
+    if (node->state & PROT_AVAIL) cprintf(" avail");
+
+    cprintf("]\n");
+    if (node->state & MAPPING_NODE) {
+        for (size_t i = 0; i < depth/2; ++i) {
+            cprintf("| ");
+        }
+        physaddr_t pstart = node->phy->addr * CLASS_SIZE(node->phy->class);
+        physaddr_t pend = pstart + CLASS_SIZE(node->phy->class);
+        cprintf("|> map on paddr[0x%lx, 0x%lx)\n", pstart, pend);
+    }
+
+    if (class > 0) {
+        if (node->left) {
+            recursive_dump(node->left, class - 1, vaddr, depth + 1);
+        }
+        if (node->right) {
+            recursive_dump(node->right, class - 1,
+                                        vaddr + CLASS_SIZE(class - 1),
+                                        depth + 1);
+        }
+    }
+}
+
 /*
  * Pretty-print virtual memory tree
  */
 void
 dump_virtual_tree(struct Page *node, int class) {
-    // LAB 7: Your code here
+    recursive_dump(node, class, 0, 0);
 }
-
-void
-dump_memory_lists(void) {
-    // LAB 6: Your code here
-    for (int i = 0; i < MAX_CLASS; ++i) {
-        cprintf("free_classes[%d] (%p) p:%p n:%p\n", i, free_classes+i, free_classes[i].prev, free_classes[i].next);
-        for(struct List* l = free_classes[i].next; l != &free_classes[i]; l = l->next) {
-            struct Page* p = (struct Page*)(l);
-            cprintf("Page [%lx, %llx] class: %d\n", PADDR(p), PADDR(p) + CLASS_SIZE(p->class), p->class);
-        }
-    }
-}
-
-
 /*
  * Pretty-print page table
  * You can read about the page table
@@ -653,13 +689,42 @@ dump_memory_lists(void) {
  * NOTE: Use dump_entry().
  * NOTE: Don't forget about PTE_PS
  */
+
+void dump_page_table_recursive(pte_t *pt, uint64_t vaddr, size_t size) {
+    pte_t prev_pt = 0;
+    bool print_dots = false;
+    for (int i = 0; i < PT_ENTRY_COUNT; i++) {
+        if (pt[i] & PTE_P) {
+            bool rec = !(pt[i] & PTE_PS) && size > 4 * KB;
+            if (rec || (pt[i] != prev_pt + size)){
+                cprintf("[%16lX] ", vaddr);
+                cprintf("%p ", (void*)pt[i]);
+                dump_entry(pt[i], size, !rec);
+                print_dots = true;
+            }
+            else {
+                if (print_dots) {
+                    cprintf("...\n");
+                    print_dots = false;
+                }
+            }
+            if (rec)  {
+                dump_page_table_recursive(KADDR(PTE_ADDR(pt[i])), vaddr, size / PT_ENTRY_COUNT);
+            }
+            prev_pt = pt[i];
+            vaddr += size;
+        }
+    }
+}
+
+
 void
 dump_page_table(pte_t *pml4) {
-    uintptr_t addr = 0;
     cprintf("Page table:\n");
     // LAB 7: Your code here
-    (void)addr;
+    dump_page_table_recursive(pml4, 0, 512 * GB);
 }
+
 
 inline static int
 alloc_pt(pte_t *dst) {
@@ -1993,5 +2058,20 @@ User_mem_assert(struct Env *env, const void *va, size_t len, int perm, const cha
                 "va=%016zx ip=%016zx\n",
                 env->env_id, file, line, user_mem_check_addr, env->env_tf.tf_rip);
         env_destroy(env); /* may not return */
+    }
+}
+
+void
+dump_memory_lists(void) {
+    for (size_t class = 0; class < MAX_CLASS; ++class) {
+        struct List *list_head = &free_classes[class];
+        for (struct List *list_cur = list_head->next;
+             list_cur != list_head;
+             list_cur = list_cur->next) {
+            struct Page *page = (struct Page *)list_cur;
+            cprintf("Page [%016lX, %016llX] (size class %u) has state %08X\n",
+                    page2pa(page), page2pa(page) + CLASS_MASK(page->class),
+                    page->class, page->state);
+        }
     }
 }
