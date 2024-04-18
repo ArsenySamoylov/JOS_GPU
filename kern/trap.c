@@ -330,8 +330,12 @@ trap(struct Trapframe *tf) {
 
         /* Read processor's CR2 register to find the faulting address */
         int res = force_alloc_page(current_space, va, MAX_ALLOCATION_CLASS);
+        if (trace_envs && trace_pagefaults)
+            cprintf("[%0x]", curenv ? curenv->env_id : 0);
+        
         if (trace_pagefaults) {
             bool can_redir = tf->tf_err & FEC_U && curenv && curenv->env_pgfault_upcall;
+            
             cprintf("<%p> Page fault ip=%08lX va=%08lX err=%c%c%c%c%c -> %s\n", current_space, tf->tf_rip, va,
                     tf->tf_err & FEC_P ? 'P' : '-',
                     tf->tf_err & FEC_U ? 'U' : '-',
@@ -412,12 +416,12 @@ page_fault_handler(struct Trapframe *tf) {
      *   To change what the user environment runs, modify 'curenv->env_tf'
      *   (the 'tf' variable points at 'curenv->env_tf'). */
     
-    // #ifdef TEST
+    #ifdef TEST 
     user_mem_assert(curenv, (void*) (USER_EXCEPTION_STACK_TOP - 1), 1, PROT_W | PROT_R);
-    // #endif
+    #endif
 
     if (!curenv->env_pgfault_upcall) {
-        user_mem_assert(curenv, (void*)cr2, PAGE_SIZE, PROT_ALL); // 
+        // user_mem_assert(curenv, (void*)cr2, PAGE_SIZE, PROT_ALL);
         env_destroy(curenv);
         sched_yield();
     }
