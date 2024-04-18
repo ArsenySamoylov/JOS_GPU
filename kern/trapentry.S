@@ -92,4 +92,7 @@ TRAPHANDLER(gpflt_hdlr, T_GPFLT)
 
 TRAPHANDLER(pgflt_handler, T_PGFLT)
 
+
+TRAPHANDLER_NOEC(kbd_hdlr, IRQ_OFFSET + IRQ_KBD)
+TRAPHANDLER_NOEC(serial_hdlr, IRQ_OFFSET + IRQ_SERIAL)
 #endif

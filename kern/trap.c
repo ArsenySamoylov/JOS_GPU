@@ -130,6 +130,10 @@ trap_init(void) {
     idt[T_GPFLT] = GATE(0, GD_KT, &gpflt_hdlr, 0);
     
     // LAB 11: Your code here
+    extern void kbd_hdlr();
+    idt[IRQ_OFFSET + IRQ_KBD] = GATE(0, GD_KT, &kbd_hdlr, 0);
+    extern void serial_hdlr();
+    idt[IRQ_OFFSET + IRQ_SERIAL] = GATE(0, GD_KT, &serial_hdlr, 0);
 
     /* Per-CPU setup */
     trap_init_percpu();
@@ -269,10 +273,18 @@ trap_dispatch(struct Trapframe *tf) {
         // LAB 5: Your code here
         timer_for_schedule->handle_interrupts();
         sched_yield(); // no return
+    
+    // LAB 11: Your code here
+    /* Handle keyboard (IRQ_KBD + kbd_intr()) */
+    case IRQ_OFFSET + IRQ_KBD:
+    kbd_intr();
+    return;
 
-        // LAB 11: Your code here
-        /* Handle keyboard (IRQ_KBD + kbd_intr()) and
-         * serial (IRQ_SERIAL + serial_intr()) interrupts. */
+    /* serial (IRQ_SERIAL + serial_intr()) interrupts. */
+    case IRQ_OFFSET + IRQ_SERIAL:
+    serial_intr();
+    return;
+    
     default:
         print_trapframe(tf);
         if (!(tf->tf_cs & 3))
