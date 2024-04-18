@@ -525,7 +525,7 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf) {
 static int
 sys_gettime(void) {
     // LAB 12: Your code here
-    return 0;
+    return gettime();
 }
 
 /*
@@ -595,11 +595,13 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         // LAB 11: Your code here
         case SYS_env_set_trapframe:
             return sys_env_set_trapframe(a1, (void*)a2);
+        // LAB 12: Your code here
+        case SYS_gettime:
+            return sys_gettime();
     }
     // LAB 9: Your code here
     // LAB 10: Your code here
     // LAB 11: Your code here
-    // LAB 12: Your code here
     cprintf("%s: Waring no such syscall\n", __func__);
 
     return -E_NO_SYS;

@@ -109,7 +109,15 @@ get_time(void) {
 int
 gettime(void) {
     // LAB 12: your code here
-    int res = 0;
+    int state = 0, res = 0;
+    
+    do {
+        while((state = cmos_read8(RTC_BREG)) & RTC_UPDATE_IN_PROGRESS)
+            ;
+        
+        res = get_time();
+    } while(res != get_time());
+
     return res;
 }
 
