@@ -52,7 +52,8 @@
 #define NVME_QUEUE_SIZE  32
 #define NVME_QUEUE_COUNT 1
 #define NVME_AQSIZE      16
-#define NVME_PAGE_SIZE   4096
+/* We need 2 pages per queue: 1 admin queue + 1 I/O queue */
+#define NVME_PAGE_COUNT  (2*(NVME_QUEUE_COUNT + 1))
 
 #define NVME_REG32(reg, offset) (volatile uint32_t *)((uint8_t *)(reg) + offset)
 #define NVME_REG64(reg, offset) (volatile uint64_t *)((uint8_t *)(reg) + offset)
@@ -268,7 +269,7 @@ struct NvmeIdentifyNamespaceData {
     struct NvmeLBAFormat lbaf[16]; /* Lba format support */
     uint8_t rsvd2[192];            /* Reserved (383-192) */
     uint8_t vs[3712];              /* Vendor specific */
-} PACKED ALIGNED(NVME_PAGE_SIZE);
+} PACKED ALIGNED(PAGE_SIZE);
 
 /* Admin data: Identify Controller */
 struct NvmeIdentifyControllerData {
@@ -306,7 +307,7 @@ struct NvmeIdentifyControllerData {
     uint8_t rsvd704[1344]; /* Reserved (704-2047) */
     uint8_t psd[1024];     /* Power state 0-31 descriptors */
     uint8_t vs[1024];      /* Vendor specific */
-} PACKED ALIGNED(NVME_PAGE_SIZE);
+} PACKED ALIGNED(PAGE_SIZE);
 
 struct NvmeQueueAttributes {
     uint32_t id;   /* Queue ID */

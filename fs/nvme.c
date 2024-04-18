@@ -37,7 +37,7 @@ static int
 nvme_alloc_queues(struct NvmeController *ctl) {
     ctl->buffer = (void *)NVME_QUEUE_VADDR;
 
-    int r = sys_alloc_region(0, ctl->buffer, 6 * PAGE_SIZE, PROT_RW | PROT_CD);
+    int r = sys_alloc_region(0, ctl->buffer, NVME_PAGE_COUNT * PAGE_SIZE, PROT_RW | PROT_CD);
     if (r < 0)
         panic("queue alloc failed");
 
@@ -45,8 +45,8 @@ nvme_alloc_queues(struct NvmeController *ctl) {
 
     /* Touch buffer pages so that they does not change their addresses.
      * They will be already zeroed by the kernel otherwise */
-    for (size_t i = 0; i < 6; i++) {
-        volatile char *page = (volatile char *)ctl->buffer + NVME_PAGE_SIZE * i;
+    for (size_t i = 0; i < NVME_PAGE_COUNT; i++) {
+        volatile char *page = (volatile char *)ctl->buffer + PAGE_SIZE * i;
         *page = 0;
         DEBUG("    va=%p, pa=%lx", page, get_phys_addr((char *)page));
     }
@@ -84,8 +84,8 @@ static int
 nvme_setup_admin_queue(struct NvmeController *ctl, int size, void *sqbuff, void *cqbuff) {
     volatile uint8_t *base = ctl->mmio_base_addr;
 
-    assert(((uintptr_t)sqbuff & (NVME_PAGE_SIZE - 1)) == 0);
-    assert(((uintptr_t)cqbuff & (NVME_PAGE_SIZE - 1)) == 0);
+    assert(((uintptr_t)sqbuff & (PAGE_SIZE - 1)) == 0);
+    assert(((uintptr_t)cqbuff & (PAGE_SIZE - 1)) == 0);
 
     ctl->adminq = (struct NvmeQueueAttributes){
             .id = 0,
@@ -174,7 +174,7 @@ nvme_device_init(struct NvmeController *ctl) {
         return err;
 
     /* Setup admin queues */
-    err = nvme_setup_admin_queue(ctl, NVME_QUEUE_SIZE, ctl->buffer, ctl->buffer + NVME_PAGE_SIZE);
+    err = nvme_setup_admin_queue(ctl, NVME_QUEUE_SIZE, ctl->buffer, ctl->buffer + PAGE_SIZE);
     if (err)
         return err;
 
@@ -195,7 +195,7 @@ copy_trimmed(char *dst, char *src, size_t len) {
 
 static int
 nvme_identify_controller(struct NvmeController *ctl) {
-    uint8_t *buff = ctl->buffer + NVME_PAGE_SIZE * 2;
+    uint8_t *buff = ctl->buffer + PAGE_SIZE * 2;
     uintptr_t buff_pa = get_phys_addr(buff);
 
     /* Reuse submission queue buffer as result
@@ -239,7 +239,7 @@ nvme_identify_controller(struct NvmeController *ctl) {
 
 static int
 nvme_identify_namespace(struct NvmeController *ctl, uint32_t id) {
-    uint8_t *buff = ctl->buffer + NVME_PAGE_SIZE * 2;
+    uint8_t *buff = ctl->buffer + PAGE_SIZE * 2;
     uintptr_t buff_pa = get_phys_addr(buff);
 
     if (nvme_acmd_identify(ctl, id, buff_pa, 0)) {
@@ -273,8 +273,8 @@ nvme_setup_io_queue(struct NvmeController *ctl, int qid) {
     DEBUG("Creating io queue %d", qid + 1);
     struct NvmeQueueAttributes *ioq = &ctl->ioq[qid];
 
-    uint8_t *sqbuff = ctl->buffer + NVME_PAGE_SIZE * (2 * (qid + 1));
-    uint8_t *cqbuff = ctl->buffer + NVME_PAGE_SIZE * (2 * (qid + 1) + 1);
+    uint8_t *sqbuff = ctl->buffer + PAGE_SIZE * (2 * (qid + 1));
+    uint8_t *cqbuff = ctl->buffer + PAGE_SIZE * (2 * (qid + 1) + 1);
 
     DEBUG("sqbuff %p, cqbuff %p", sqbuff, cqbuff);
 
