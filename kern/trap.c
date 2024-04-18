@@ -274,6 +274,11 @@ trap_dispatch(struct Trapframe *tf) {
         // LAB 4: Your code here
         // LAB 5: Your code here
         timer_for_schedule->handle_interrupts();
+        
+        // LAB 12:
+        int* vsys_gettime_addr = ((int*)vsys + VSYS_gettime);
+        *vsys_gettime_addr = gettime();
+        // cprintf("Time: %d (%p)\n", time, vsys_gettime_addr);
         sched_yield(); // no return
     
     // LAB 11: Your code here

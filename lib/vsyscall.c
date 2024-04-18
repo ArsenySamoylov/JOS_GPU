@@ -4,11 +4,15 @@
 static inline uint64_t
 vsyscall(int num) {
     // LAB 12: Your code here
-    (void)num;
-    return 0;
+    // cprintf("HEH: %p\n", vsys + num);
+    return vsys[num];
 }
 
 int
 vsys_gettime(void) {
-    return vsyscall(VSYS_gettime);
+    int res =0;
+    while((res = vsyscall(VSYS_gettime)) == 0)
+        ;
+    
+    return res;
 }

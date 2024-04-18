@@ -98,6 +98,12 @@ env_init(void) {
      * Don't forget about rounding.
      * kzalloc_region only works with current_space != NULL */
     // LAB 12: Your code here
+    vsys = kzalloc_region(UVSYS_SIZE);
+    assert(vsys);
+
+    // Map for users as read-only
+    int res = map_region(&kspace, UVSYS, &kspace, (uintptr_t) vsys, UVSYS_SIZE, PROT_R | PROT_USER_);
+    assert(!res);
 
     /* Allocate envs array with kzalloc_region().
      * Don't forget about rounding.
@@ -110,7 +116,7 @@ env_init(void) {
     envs = kzalloc_region(NENV * sizeof(*envs));
     assert(envs);
 
-    int res = map_region(&kspace, UENVS, &kspace, (uintptr_t) envs, NENV * sizeof(*envs), PROT_R | PROT_USER_);
+    res = map_region(&kspace, UENVS, &kspace, (uintptr_t) envs, NENV * sizeof(*envs), PROT_R | PROT_USER_);
     assert(!res);
 
     /* Set up envs array */
