@@ -261,6 +261,12 @@ copy_shared_region(void *start, void *end, void *arg) {
 }
 
 
+#define LOG(...) do {                               \
+    cprintf("%s:%d ",  __func__, __LINE__);         \
+    cprintf(__VA_ARGS__);                           \
+    cprintf("\n");                                  \
+} while(0)
+
 static int
 map_segment(envid_t child, uintptr_t va, size_t memsz,
             int fd, size_t filesz, off_t fileoffset, int perm) {
@@ -279,6 +285,15 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
     // LAB 11: Your code here
     /* NOTE: There's restriction on maximal filesz
      * for each program segment (HUGE_PAGE_SIZE) */
+    if (filesz > HUGE_PAGE_SIZE) {
+        LOG("fiilesz");
+        return -E_INVAL;
+        }
+
+    if (memsz < filesz) {
+        LOG("memsz");
+        return -E_INVAL;
+    }
 
     /* Allocate filesz - memsz in child */
     /* Allocate filesz in parent to UTEMP */
@@ -286,6 +301,28 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
     /* read filesz to UTEMP */
     /* Map read section conents to child */
     /* Unmap it from parent */
+    if ((res = sys_alloc_region(0, UTEMP, memsz, perm | PROT_W)) < 0) {
+        LOG("alloc UTEMP");
+        return res;
+        }
 
-    return 0;
+    if ((res = seek(fd, fileoffset)) < 0) {
+        LOG("seek");
+        goto error;
+    }
+    
+    if ((res = readn(fd, UTEMP, filesz)) != filesz) {
+        LOG("reand");
+        goto error;
+    }
+
+    if((res = sys_map_region(0, UTEMP, child, (void*)va, memsz, perm)) < 0) {
+        LOG("copy");
+        goto error;
+    }
+
+    error:
+    sys_unmap_region(0, UTEMP, memsz);
+    
+    return res;
 }

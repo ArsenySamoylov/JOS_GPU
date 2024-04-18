@@ -509,7 +509,14 @@ sys_ipc_recv(uintptr_t dstva, uintptr_t maxsize) {
 static int
 sys_env_set_trapframe(envid_t envid, struct Trapframe *tf) {
     // LAB 11: Your code here
-
+    struct Env* target;
+    int status = envid2env(envid, &target, false);
+    if (status)
+        return status;
+    
+    // todo: check tf addr
+    // todo: check tf content
+    nosan_memcpy(&target->env_tf, tf, sizeof(*tf));
     return 0;
 }
 
@@ -573,15 +580,17 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         case SYS_yield:
             sys_yield();
             panic("No return!");
-            break;
         case SYS_ipc_try_send:
             return sys_ipc_try_send(a1, a2, a3, a4, a5);
         case SYS_ipc_recv:
             return sys_ipc_recv(a1, a2);
+        // LAB 11: Your code here
+        case SYS_env_set_trapframe:
+            return sys_env_set_trapframe(a1, (void*)a2);
     }
     // LAB 9: Your code here
     // LAB 10: Your code here
-    // LAB 11: Your code here
+    cprintf("%s: Waring no such syscall\n", __func__);
 
     return -E_NO_SYS;
 }
