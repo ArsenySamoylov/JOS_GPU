@@ -206,8 +206,9 @@ serve_read(envid_t envid, union Fsipc *ipc) {
     if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
         return r;
 
+    // FIXME actually can read little less than PAGE_SIZE
     if (req->req_n >= PAGE_SIZE) {
-        cprintf("%s: Warning req->reqn(0x%lx) truncated to PAGE_SIZE\n", __func__, req->req_n);
+        // cprintf("%s: Warning req->reqn(0x%lx) truncated to PAGE_SIZE\n", __func__, req->req_n);
         req->req_n = PAGE_SIZE;
     }
 
