@@ -192,6 +192,13 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     env->env_tf.tf_rsp = USER_STACK_TOP;
 #endif
 
+    // Unposon allocated user stack
+#ifdef SANITIZE_SHADOW_BASE
+    struct AddressSpace* old_space = switch_address_space(&env->address_space);
+    platform_asan_unpoison((void*)(USER_STACK_TOP - PAGE_SIZE), PAGE_SIZE);
+    switch_address_space(old_space);
+#endif // SANITIZE_SHADOW_BASE
+
     /* For now init trapframe with IF set */
     env->env_tf.tf_rflags = FL_IF | (type == ENV_TYPE_FS ? FL_IOPL_3 : FL_IOPL_0);
 

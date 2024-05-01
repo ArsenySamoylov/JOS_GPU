@@ -59,7 +59,7 @@ sys_cputs(const char *s, size_t len) {
     /* Check that the user has permission to read memory [s, s+len).
      * Destroy the environment if not. */
     #ifdef SANITIZE_SHADOW_BASE
-    platform_asan_unpoison((void*)s, len);
+    // platform_asan_unpoison((void*)s, len);
     #endif
 
     user_mem_assert(curenv, s, len, PROT_R); // may not return
@@ -69,7 +69,7 @@ sys_cputs(const char *s, size_t len) {
     }
 
     #ifdef SANITIZE_SHADOW_BASE
-    platform_asan_poison((void*)s, len);
+    // platform_asan_poison((void*)s, len);
     #endif
     
     return 0;
