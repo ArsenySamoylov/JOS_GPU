@@ -120,15 +120,24 @@ devfile_read(struct Fd *fd, void *buf, size_t n) {
      * system server. */
 
     // LAB 10: Your code here:
-    fsipcbuf.read.req_fileid = fd->fd_file.id;
-    fsipcbuf.read.req_n      = n;
-
-    int res = fsipc(FSREQ_READ, NULL);
-    if(res <0)
+    size_t remaining = n;
+    while (remaining > 0) {
+      fsipcbuf.read.req_fileid = fd->fd_file.id;
+      fsipcbuf.read.req_n = MIN(n, sizeof(fsipcbuf.readRet.ret_buf));
+      int res = fsipc(FSREQ_READ, &fsipcbuf);
+      if (res < 0) {
         return res;
-        
-    memcpy(buf, fsipcbuf.readRet.ret_buf, res); 
-    return res; 
+      }
+
+      if (res == 0) {
+        break;
+      }
+
+      memcpy(buf + n - remaining, fsipcbuf.readRet.ret_buf, res);
+      remaining -= res;
+    }
+
+    return n - remaining;
 }
 
 /* Write at most 'n' bytes from 'buf' to 'fd' at the current seek position.
@@ -145,11 +154,27 @@ devfile_write(struct Fd *fd, const void *buf, size_t n) {
      * potentially required. */
 
     // LAB 10: Your code here:
-    fsipcbuf.write.req_fileid = fd->fd_file.id;
-    fsipcbuf.write.req_n      = n;
+    size_t remaining = n;
+    while (remaining > 0) {
+      const size_t bufsize = sizeof(fsipcbuf.write.req_buf);
+      
+      fsipcbuf.write.req_fileid = fd->fd_file.id;
+      fsipcbuf.write.req_n = MIN(bufsize, remaining);
+      memcpy(fsipcbuf.write.req_buf, buf + n - remaining, fsipcbuf.write.req_n);
 
-    memcpy(fsipcbuf.write.req_buf, buf, n);
-    return fsipc(FSREQ_WRITE, NULL);
+      int res = fsipc(FSREQ_WRITE, &fsipcbuf);
+      if (res < 0) {
+        return res;
+      }
+
+      if (res == 0) {
+        break;
+      }
+
+      remaining -= res;
+    }
+
+    return n - remaining;
 }
 
 /* Get file information */

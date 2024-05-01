@@ -206,10 +206,9 @@ serve_read(envid_t envid, union Fsipc *ipc) {
     if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
         return r;
 
-    // FIXME actually can read little less than PAGE_SIZE
-    if (req->req_n >= PAGE_SIZE) {
+    if (req->req_n > sizeof(ipc->readRet.ret_buf)) {
         // cprintf("%s: Warning req->reqn(0x%lx) truncated to PAGE_SIZE\n", __func__, req->req_n);
-        req->req_n = PAGE_SIZE;
+        req->req_n = sizeof(ipc->readRet.ret_buf);
     }
 
     ssize_t n_read = file_read(o->o_file, ipc->readRet.ret_buf, req->req_n, o->o_fd->fd_offset);
@@ -239,7 +238,8 @@ serve_write(envid_t envid, union Fsipc *ipc) {
     if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
         return r;
 
-    assert(req->req_n < PAGE_SIZE);
+    if (req->req_n > sizeof(req->req_buf))
+        req->req_n = sizeof(req->req_buf);
 
     ssize_t n_read = file_write(o->o_file, req->req_buf, req->req_n, o->o_fd->fd_offset);
     if (n_read < 0)
