@@ -262,7 +262,7 @@ copy_shared_region(void *start, void *end, void *arg) {
 
 
 #define LOG(...) do {                               \
-    cprintf("%s:%d ",  __func__, __LINE__);         \
+    cprintf("%s %s:%d ", __FILE__,  __func__, __LINE__);         \
     cprintf(__VA_ARGS__);                           \
     cprintf("\n");                                  \
 } while(0)
@@ -276,6 +276,7 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
     /* Fixup unaligned destination */
     int res = PAGE_OFFSET(va);
     if (res) {
+        LOG("Alignment: va: %p, memsz: %ld, filesz: %ld\n", (void*) va, memsz, filesz);
         va -= res;
         memsz += res;
         filesz += res;
@@ -312,7 +313,7 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
     }
     
     if ((res = readn(fd, UTEMP, filesz)) != filesz) {
-        LOG("reand");
+        LOG("readn error (res: %d, filesz: %ld, memsz: %ld", res, filesz, memsz);
         goto error;
     }
 
