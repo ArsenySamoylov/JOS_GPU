@@ -101,8 +101,7 @@ platform_asan_poison(void *addr, size_t size) {
 
 static int
 asan_unpoison_shared_region(void *start, void *end, void *arg) {
-    (void)start, (void)end, (void)arg;
-    // LAB 8: Your code here
+    asan_internal_fill_range((uptr)start, end - start, 0);
     return 0;
 }
 
@@ -149,6 +148,7 @@ platform_asan_init(void) {
      * HINT: Use foreach_shared_region() with asan_unpoison_shared_region() */
     // LAB 8: Your code here
     // TODO NOTE: LAB 11 code may be here
+    foreach_shared_region(asan_unpoison_shared_region, 0);
 }
 
 void
