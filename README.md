@@ -5,11 +5,12 @@ This project is intended for educational purposes only. It is a study project an
 Please use it responsibly and at your own risk =).
 
 # JOS
-is microkernel that started as fork of [MIT JOS](https://github.com/phlalx/jos).
+is microkernel that started as fork of [MIT JOS](https://pdos.csail.mit.edu/6.828/2018/overview.html).
 
 # New in JOS
 This branch contains vastly improved kernel memory
 subsystem with following new features:
+```
     * 2M/1G pages
     * Lazy copying/lazy memory allocation
         * Used for speeding up ASAN memory allocation
@@ -37,3 +38,4 @@ TODO
       regions to canonical upper part of address space
       (this requires copyin/copyout functions because
        ASAN should never touch user-space memory)
+```
