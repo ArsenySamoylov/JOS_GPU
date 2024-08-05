@@ -1,3 +1,13 @@
+# Disclaimer
+
+This project is intended for educational purposes only. It is a study project and not intended for production use. 
+
+Please use it responsibly and at your own risk =).
+
+# JOS
+is microkernel that started as fork of [MIT JOS](https://github.com/phlalx/jos).
+
+# New in JOS
 This branch contains vastly improved kernel memory
 subsystem with following new features:
     * 2M/1G pages
